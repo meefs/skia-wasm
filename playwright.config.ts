@@ -2,6 +2,20 @@ import { defineConfig } from "playwright/test";
 
 const port = 8790;
 
+// The Linux runners of GitHub Actions have no GPU: WebGPU runs on SwiftShader,
+// the software Vulkan driver that ships with Chromium. ANGLE has to run on it
+// too, or the GPU process cannot share the texture of a canvas and crashes.
+const softwareVulkan =
+  process.env.CI && process.platform === "linux"
+    ? [
+        "--enable-features=Vulkan",
+        "--use-vulkan=swiftshader",
+        "--use-angle=swiftshader",
+        "--use-webgpu-adapter=swiftshader",
+        "--disable-vulkan-surface",
+      ]
+    : [];
+
 // eslint-disable-next-line import/no-default-export
 export default defineConfig({
   testDir: "./tests",
@@ -14,7 +28,7 @@ export default defineConfig({
     // shell has no GPU process to give WebGPU an adapter.
     channel: "chromium",
     launchOptions: {
-      args: ["--enable-unsafe-webgpu", "--enable-gpu"],
+      args: ["--enable-unsafe-webgpu", "--enable-gpu", ...softwareVulkan],
     },
   },
   webServer: {

@@ -12,6 +12,11 @@ concurrency:
 permissions:
   contents: read
 
+env:
+  # The release the Skia archives pinned by binaries.json were built with: see
+  # metadata.json in the archives. The build stops if the two differ.
+  EMSCRIPTEN_VERSION: 4.0.7
+
 jobs:
   lint:
     name: Lint and type check
@@ -31,3 +36,52 @@ jobs:
       - run: yarn lint:ci
 
       - run: yarn tsc
+
+  test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: yarn
+
+      - name: Restore Emscripten
+        id: emsdk
+        uses: actions/cache@v6
+        with:
+          path: ~/emsdk
+          key: emsdk-${{ runner.os }}-${{ env.EMSCRIPTEN_VERSION }}
+
+      - name: Install Emscripten
+        if: steps.emsdk.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
+          ~/emsdk/emsdk install "$EMSCRIPTEN_VERSION"
+          ~/emsdk/emsdk activate "$EMSCRIPTEN_VERSION"
+
+      - run: echo "EMSDK=$HOME/emsdk" >> "$GITHUB_ENV"
+
+      # What scripts/skia.ts downloads once and unpacks in the user cache.
+      - name: Restore the Skia archives
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/skia-wasm
+          key: skia-wasm-${{ hashFiles('binaries.json') }}
+
+      - run: yarn install --immutable
+
+      - run: yarn playwright install --with-deps chromium
+
+      # The runner has no GPU: see the Linux flags in playwright.config.ts.
+      - run: yarn test
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results
+          path: test-results
+          if-no-files-found: ignore
+          retention-days: 7
