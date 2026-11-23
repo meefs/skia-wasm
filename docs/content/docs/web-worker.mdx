@@ -1,0 +1,12 @@
+---
+title: Web worker
+description: Draw from a worker, through an OffscreenCanvas.
+---
+
+<Example name="web-worker" />
+
+The page transfers its canvas to a worker and forwards pointer events. The worker creates the WebGPU device and draws every frame.
+
+<include lang="ts" meta='title="main.ts"'>../../examples/web-worker/main.ts</include>
+
+<include lang="ts" meta='title="worker.ts"'>../../examples/web-worker/worker.ts</include>

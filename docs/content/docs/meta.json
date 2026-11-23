@@ -1,0 +1,28 @@
+{
+  "title": "Examples",
+  "pages": [
+    "index",
+    "---Platform---",
+    "web-worker",
+    "video-and-camera",
+    "texture-surface",
+    "---Showcase---",
+    "breathe",
+    "clock",
+    "line-chart",
+    "phyllotaxis",
+    "drawing",
+    "---Basics---",
+    "rounded-rect",
+    "transform",
+    "raw-writes",
+    "svg-path",
+    "animated-path",
+    "linear-gradient",
+    "runtime-shader",
+    "image",
+    "image-slots",
+    "clip-and-blend",
+    "instances"
+  ]
+}

@@ -1,0 +1,80 @@
+---
+title: Examples
+description: Skia Graphite on WebGPU, compiled to WebAssembly, one example at a time.
+---
+
+Each page runs its example live, then shows its code. An example is a complete module: it expects a page with a 512 by 512 `<canvas>`, served over HTTPS or from localhost, in a browser with WebGPU.
+
+The `skia-wasm` package on npm is still a placeholder. Until it is published, run `yarn build` in the repository and import `dist/lib/index.js` instead.
+
+## Platform
+
+<Cards>
+  <Card title="Web worker" href="/docs/web-worker">
+    Draw from a worker, through an OffscreenCanvas.
+  </Card>
+  <Card title="Video and camera" href="/docs/video-and-camera">
+    A video file and the camera as textures that Skia draws, with color filters.
+  </Card>
+  <Card title="Texture surface" href="/docs/texture-surface">
+    Draw into a GPUTexture and read the pixels back.
+  </Card>
+</Cards>
+
+## Showcase
+
+<Cards>
+  <Card title="Breathe" href="/docs/breathe">
+    Six discs blended with Screen, breathing in and out.
+  </Card>
+  <Card title="Clock" href="/docs/clock">
+    An analog clock: a static dial and three animated hands.
+  </Card>
+  <Card title="Line chart" href="/docs/line-chart">
+    An animated curve with a gradient under it.
+  </Card>
+  <Card title="Phyllotaxis" href="/docs/phyllotaxis">
+    800 dots in one program, each with its own matrix.
+  </Card>
+  <Card title="Freehand drawing" href="/docs/drawing">
+    Pointer strokes appended to a path buffer, drawn on demand.
+  </Card>
+</Cards>
+
+## Basics
+
+<Cards>
+  <Card title="Rounded rectangle" href="/docs/rounded-rect">
+    Record a scene once, then draw it.
+  </Card>
+  <Card title="Animated transform" href="/docs/transform">
+    Animate a matrix through the typed values of a scene.
+  </Card>
+  <Card title="Raw writes" href="/docs/raw-writes">
+    Animate by writing floats straight into the data block.
+  </Card>
+  <Card title="SVG path" href="/docs/svg-path">
+    Fill and stroke a static path made from an SVG string.
+  </Card>
+  <Card title="Animated path" href="/docs/animated-path">
+    A path whose points are rewritten every frame.
+  </Card>
+  <Card title="Linear gradient" href="/docs/linear-gradient">
+    A gradient whose end point and colors are animated.
+  </Card>
+  <Card title="Runtime shader" href="/docs/runtime-shader">
+    An SkSL shader with its uniforms in the data block.
+  </Card>
+  <Card title="Image" href="/docs/image">
+    Decode an image file and draw it.
+  </Card>
+  <Card title="Image slots" href="/docs/image-slots">
+    Change the image a command draws without rebuilding the program.
+  </Card>
+  <Card title="Clip and blend modes" href="/docs/clip-and-blend">
+    An animated clip around three discs blended with Plus.
+  </Card>
+  <Card title="Instances" href="/docs/instances">
+    One program, 64 instances, drawn in one call.
+  </Card>
+</Cards>

@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>display list: running</title>
+    <link rel="icon" href="data:," />
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        margin: 24px;
+      }
+      canvas {
+        border: 1px solid #888;
+        display: block;
+        margin-bottom: 12px;
+      }
+    </style>
+  </head>
+  <body>
+    <p>
+      The display list prototype: one tile per feature, drawn into a texture
+      and read back (first canvas), then drawn straight to a WebGPU canvas
+      (second canvas).
+    </p>
+    <canvas id="readback" width="256" height="192"></canvas>
+    <canvas id="gpu" width="256" height="192"></canvas>
+    <pre></pre>
+    <script type="module" src="../dist/tests/display-list.js"></script>
+  </body>
+</html>

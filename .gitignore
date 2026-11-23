@@ -1,0 +1,9 @@
+node_modules/
+dist/
+test-results/
+.eslintcache
+.DS_Store
+
+# Yarn: the release is committed, the rest is local state.
+.yarn/*
+!.yarn/releases
