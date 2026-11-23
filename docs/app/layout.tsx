@@ -8,7 +8,11 @@ const inter = Inter({
   subsets: ['latin'],
 });
 
+// The origin of the published site, for the absolute URLs of social cards.
+const siteUrl = process.env.DOCS_SITE_URL;
+
 export const metadata: Metadata = {
+  metadataBase: siteUrl ? new URL(siteUrl) : undefined,
   title: {
     template: `%s | ${appName}`,
     default: appName,

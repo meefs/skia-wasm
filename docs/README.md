@@ -30,3 +30,14 @@ To add an example, write `examples/name.ts`, add `content/docs/name.mdx`, then l
 - `yarn examples --watch` rebuilds the previews when an example changes.
 - Without the wasm module, `yarn dev` still works and the previews say what is missing. `yarn build` fails instead, so that a site is never published with previews that cannot run.
 - An example that asks for a permission, such as the camera, takes `<Example name="..." manual />` and waits for a click.
+
+## Deployment
+
+`.github/workflows/docs.yml` publishes the site to GitHub Pages on every push to `main`. It installs Emscripten, builds the wasm module in the repository root, then builds this folder and uploads `out/`. It needs Pages enabled in the repository settings, with "GitHub Actions" as its source.
+
+GitHub Pages serves a project site under the name of its repository, so the workflow passes two variables to the build:
+
+- `DOCS_BASE_PATH`: the path the site is served under, such as `/skia-wasm`. Next.js adds it to its own links; `basePath` in `lib/shared.ts` is for the URLs built by hand.
+- `DOCS_SITE_URL`: the origin of the site, for the absolute URLs of social cards.
+
+Neither is needed in development.

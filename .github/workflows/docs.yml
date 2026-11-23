@@ -1,0 +1,96 @@
+name: Docs
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deployment at a time. A newer push waits for the one in progress instead
+# of cancelling it halfway.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  # The release the Skia archives pinned by binaries.json were built with: see
+  # metadata.json in the archives. The build stops if the two differ.
+  EMSCRIPTEN_VERSION: 4.0.7
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: yarn
+          cache-dependency-path: |
+            yarn.lock
+            docs/yarn.lock
+
+      - name: Restore Emscripten
+        id: emsdk
+        uses: actions/cache@v6
+        with:
+          path: ~/emsdk
+          key: emsdk-${{ runner.os }}-${{ env.EMSCRIPTEN_VERSION }}
+
+      - name: Install Emscripten
+        if: steps.emsdk.outputs.cache-hit != 'true'
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git ~/emsdk
+          ~/emsdk/emsdk install "$EMSCRIPTEN_VERSION"
+          ~/emsdk/emsdk activate "$EMSCRIPTEN_VERSION"
+
+      - run: echo "EMSDK=$HOME/emsdk" >> "$GITHUB_ENV"
+
+      # What scripts/skia.ts downloads once and unpacks in the user cache.
+      - name: Restore the Skia archives
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/skia-wasm
+          key: skia-wasm-${{ hashFiles('binaries.json') }}
+
+      # The live previews of the docs run the module this builds in dist/lib.
+      - name: Build the wasm module
+        run: |
+          yarn install --immutable
+          yarn build
+
+      # Where the site is served: needs Pages enabled in the repository
+      # settings, with "GitHub Actions" as its source.
+      - id: pages
+        uses: actions/configure-pages@v6
+
+      - name: Build the docs
+        working-directory: docs
+        env:
+          DOCS_BASE_PATH: ${{ steps.pages.outputs.base_path }}
+          DOCS_SITE_URL: ${{ steps.pages.outputs.origin }}
+        run: |
+          yarn install --immutable
+          yarn build
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: docs/out
+
+  deploy:
+    name: Deploy
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

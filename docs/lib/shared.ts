@@ -2,10 +2,13 @@ import { createGetUrl } from 'fumadocs-core/source';
 
 export const appName = 'skia-wasm';
 export const appDescription = 'Skia Graphite on WebGPU, compiled to WebAssembly.';
+// Where the site is served: see next.config.mjs. Next.js adds it to its own
+// links; a URL built by hand, such as one given to fetch(), needs it spelled out.
+export const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? '';
 export const docsRoute = '/docs';
 export const docsImageRoute = '/og/docs';
 // The live previews that scripts/examples.mjs builds into public/examples.
-export const examplesRoute = '/examples';
+export const examplesRoute = `${basePath}/examples`;
 
 export const gitConfig = {
   user: 'wcandillon',
