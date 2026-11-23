@@ -33,6 +33,10 @@ export interface Setup {
   dispose: () => void;
 }
 
+// Dawn lives as long as what create() returns. If that is collected while a
+// device is in use, the process crashes.
+let gpu: GPU | undefined;
+
 /** What the JavaScript that Emscripten made takes; the types leave it out. */
 type Factory = (options: {
   wasmBinary: Uint8Array;
@@ -41,8 +45,7 @@ type Factory = (options: {
 export const setup = async (): Promise<Setup> => {
   // GPUBufferUsage and the classes, which the glue of Emscripten looks for.
   Object.assign(globalThis, globals);
-  const backend = process.platform === "linux" ? ["backend=vulkan"] : [];
-  const gpu = create(backend);
+  gpu = create([]);
   const adapter = await gpu.requestAdapter();
   if (!adapter) {
     throw new Error("Dawn found no GPU.");
