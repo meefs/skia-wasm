@@ -149,4 +149,4 @@ Dawn itself is not in the archives. The browser implements WebGPU; `emdawnwebgpu
 
 ## License
 
-MIT. Skia and Dawn have their own licenses, shipped with the archives.
+MIT. Skia and Dawn have their own licenses, shipped with the archives and, in the npm package, in `dist/lib/THIRD_PARTY_LICENSES.txt`.

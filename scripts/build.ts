@@ -9,7 +9,7 @@ import path from "path";
 
 import { Dist, bundle, link, run, sourcesIn } from "./emcc";
 import { generateExports } from "./generate-exports";
-import { PackageRoot } from "./skia";
+import { PackageRoot, prepareSkia } from "./skia";
 
 const Lib = path.join(Dist, "lib");
 
@@ -50,6 +50,35 @@ const declarations = () => {
   );
 };
 
+/**
+ * The licenses of what the wasm module is built from, as the Skia archives
+ * carry them: both ask for their notice to go with a binary.
+ */
+const licenses = async () => {
+  const { root } = await prepareSkia();
+  const notices = [
+    ["Skia", path.join(root, "LICENSE")],
+    [
+      "Dawn, whose WebGPU bindings for Emscripten the module is linked with",
+      path.join(root, "emdawnwebgpu", "webgpu_cpp", "LICENSE"),
+    ],
+  ].map(([name, file]) => {
+    if (!fs.existsSync(file)) {
+      throw new Error(`The Skia archives have no ${file}.`);
+    }
+    return `${name}\n${"=".repeat(name.length)}\n\n${fs
+      .readFileSync(file, "utf8")
+      .trim()}\n`;
+  });
+  fs.writeFileSync(
+    path.join(Lib, "THIRD_PARTY_LICENSES.txt"),
+    `skia-wasm.wasm is built from the following projects.\n\n${notices.join(
+      "\n"
+    )}`
+  );
+  console.log(`✅ ${path.relative(PackageRoot, Lib)}/THIRD_PARTY_LICENSES.txt`);
+};
+
 run(async () => {
   generateExports();
   await link({
@@ -64,6 +93,7 @@ run(async () => {
     { published: true }
   );
   declarations();
+  await licenses();
   // The files of dist/lib are ES modules, whatever the package around them
   // says: Node and bundlers read the nearest package.json.
   fs.writeFileSync(
