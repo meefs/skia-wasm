@@ -2,10 +2,8 @@ import { Skia } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const sk = await Skia.init({
-  device,
-  canvas: document.querySelector("canvas")!,
-});
+const sk = await Skia.init({ device });
+const surface = sk.surface(document.querySelector("canvas")!);
 
 const response = await fetch("Roboto-Medium.ttf");
 const font = sk.font(sk.typeface(await response.arrayBuffer()), 32);
@@ -34,7 +32,7 @@ const frame = () => {
   const hours = (now.getHours() % 12) + minutes / 60;
   const turn = 2 * Math.PI;
 
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("white");
   canvas.drawCircle(256, 256, 216, face);
   for (const { text, x, y } of numerals) {
@@ -71,7 +69,7 @@ const frame = () => {
   hand((seconds / 60) * turn, 4, 168, orange);
   canvas.drawCircle(256, 256, 8, orange);
 
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

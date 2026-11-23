@@ -2,10 +2,8 @@ import { Skia } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const sk = await Skia.init({
-  device,
-  canvas: document.querySelector("canvas")!,
-});
+const sk = await Skia.init({ device });
+const surface = sk.surface(document.querySelector("canvas")!);
 
 // SkSL, compiled once. The type argument names the kind of each uniform.
 const effect = sk.effect<{ iTime: "f32"; iResolution: "vec2" }>(`
@@ -30,9 +28,9 @@ const frame = (time: number) => {
   paint.shader = shader;
   shader.dispose();
 
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.drawPaint(paint);
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

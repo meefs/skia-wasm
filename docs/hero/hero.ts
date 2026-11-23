@@ -733,7 +733,7 @@ export const mountHero: MountHero = async (canvas, assets, initial) => {
         // the units of the page: CSS pixels.
         return {
           texture,
-          surface: sk.makeSurface(texture, { pixelRatio: next.pixelRatio }),
+          surface: sk.surface(texture, { pixelRatio: next.pixelRatio }),
         };
       });
       bindings = device.createBindGroup({

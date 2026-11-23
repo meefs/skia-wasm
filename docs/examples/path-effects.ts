@@ -2,10 +2,8 @@ import { Skia } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const sk = await Skia.init({
-  device,
-  canvas: document.querySelector("canvas")!,
-});
+const sk = await Skia.init({ device });
+const surface = sk.surface(document.querySelector("canvas")!);
 
 // One star, drawn four times through different path effects.
 const star = sk.path();
@@ -34,7 +32,7 @@ const rough = sk.pathEffect.discrete(8, 4);
 
 const frame = (time: number) => {
   const t = time / 1000;
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("white");
 
   // Effects are immutable: one that animates is made again every frame.
@@ -51,7 +49,7 @@ const frame = (time: number) => {
   marching.dispose();
   growing.dispose();
 
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

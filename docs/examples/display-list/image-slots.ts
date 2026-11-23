@@ -3,7 +3,8 @@ import { Skia } from "skia-wasm";
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
 const canvas = document.querySelector("canvas")!;
-const sk = await Skia.init({ device, canvas });
+const sk = await Skia.init({ device });
+const surface = sk.surface(canvas);
 
 // A texture of the page, wrapped as an image without a copy.
 const solid = (r: number, g: number, b: number) => {
@@ -29,12 +30,12 @@ b.drawImage(picture, { x: 156, y: 156, width: 200, height: 200 });
 const program = b.build({ picture });
 
 const scene = program.instantiate();
-sk.surface.setClearColor(1, 1, 1);
+surface.setClearColor(1, 1, 1);
 
 const frame = (time: number) => {
   // Rebinding a slot is one integer write.
   scene.values.picture = images[Math.floor(time / 500) % images.length];
-  sk.surface.draw(scene);
+  surface.draw(scene);
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

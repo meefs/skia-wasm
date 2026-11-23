@@ -2,14 +2,12 @@ import { Skia } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const sk = await Skia.init({
-  device,
-  canvas: document.querySelector("canvas")!,
-});
+const sk = await Skia.init({ device });
+const surface = sk.surface(document.querySelector("canvas")!);
 
 // A surface that is not on screen: Skia owns its texture. It is given the
 // density of the screen it will be shown on.
-const offscreen = sk.makeOffscreenSurface(256, 256, {
+const offscreen = sk.offscreenSurface(256, 256, {
   pixelRatio: devicePixelRatio,
 });
 const hidden = offscreen.getCanvas();
@@ -37,12 +35,12 @@ link.style.cssText =
 document.body.append(link);
 
 const frame = (time: number) => {
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("white");
   canvas.rotate(time / 3000, 256, 232);
   // An image is measured in pixels: it is drawn at the size of the surface.
   canvas.drawImage(image, 128, 104, offscreen.width, offscreen.height);
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

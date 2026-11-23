@@ -92,10 +92,7 @@ const run = async () => {
   step("loading the module");
   const sk = await Skia.init({
     device,
-    canvas: document.querySelector<HTMLCanvasElement>("#gpu")!,
     module: new URL("../dist/lib/skia-wasm.js", location.href).href,
-    // The checks below read pixels back: one per unit, whatever the screen.
-    pixelRatio: 1,
   });
 
   // The target that is read back: a texture, not the canvas.
@@ -107,7 +104,7 @@ const run = async () => {
       GPUTextureUsage.TEXTURE_BINDING |
       GPUTextureUsage.COPY_SRC,
   });
-  const surface = sk.makeSurface(target);
+  const surface = sk.surface(target);
   surface.setClearColor(1, 1, 1, 1);
 
   const readback = device.createBuffer({
@@ -437,11 +434,12 @@ const run = async () => {
   // ---- The canvas surface: the same scene, one instance, straight to the
   // canvas, whose texture can be read until the frame is presented.
   step("drawing to the canvas");
-  sk.surface.setClearColor(1, 1, 1, 1);
-  sk.surface.draw(scene);
-  const context = document
-    .querySelector<HTMLCanvasElement>("#gpu")!
-    .getContext("webgpu") as GPUCanvasContext;
+  const element = document.querySelector<HTMLCanvasElement>("#gpu")!;
+  // The checks read pixels back: one per unit, whatever the screen.
+  const canvasSurface = sk.surface(element, { pixelRatio: 1 });
+  canvasSurface.setClearColor(1, 1, 1, 1);
+  canvasSurface.draw(scene);
+  const context = element.getContext("webgpu") as GPUCanvasContext;
   const canvasPixels = await read(context.getCurrentTexture());
   if (navigator.gpu.getPreferredCanvasFormat() === "bgra8unorm") {
     for (let i = 0; i < canvasPixels.length; i += 4) {

@@ -4,7 +4,8 @@ import type { Path } from "skia-wasm";
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
 const element = document.querySelector("canvas")!;
-const sk = await Skia.init({ device, canvas: element });
+const sk = await Skia.init({ device });
+const surface = sk.surface(element);
 
 const pen = sk.paint({
   color: "#0f172a",
@@ -19,12 +20,12 @@ const strokes: Path[] = [];
 
 // Nothing animates: a frame is drawn when a stroke changes.
 const draw = () => {
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("white");
   for (const stroke of strokes) {
     canvas.drawPath(stroke, pen);
   }
-  sk.surface.flush();
+  surface.flush();
 };
 draw();
 

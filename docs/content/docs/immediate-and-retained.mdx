@@ -11,11 +11,11 @@ You draw every frame by calling the canvas, as in CanvasKit or Canvas 2D.
 
 ```ts
 const frame = (time: number) => {
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("white");
   canvas.rotate(time / 1000, 256, 256);
   canvas.drawRoundedRect(156, 196, 200, 120, 16, paint);
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 ```
@@ -37,7 +37,7 @@ const scene = b.build({ transform }).instantiate();
 
 const frame = (time: number) => {
   scene.values.transform.setRotate(time / 1000, 256, 256);
-  sk.surface.draw(scene);
+  surface.draw(scene);
   requestAnimationFrame(frame);
 };
 ```

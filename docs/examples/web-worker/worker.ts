@@ -9,7 +9,8 @@ const start = async (canvas: OffscreenCanvas, pixelRatio: number) => {
   // WebGPU is available in workers: the device is created here.
   const adapter = await navigator.gpu.requestAdapter();
   const device = await adapter!.requestDevice();
-  const sk = await Skia.init({ device, canvas, pixelRatio });
+  const sk = await Skia.init({ device });
+  const surface = sk.surface(canvas, { pixelRatio });
 
   const effect = sk.effect<{ iTime: "f32"; iPointer: "vec2" }>(`
     uniform float iTime;
@@ -36,8 +37,8 @@ const start = async (canvas: OffscreenCanvas, pixelRatio: number) => {
     });
     paint.shader = shader;
     shader.dispose();
-    sk.surface.getCanvas().drawPaint(paint);
-    sk.surface.flush();
+    surface.getCanvas().drawPaint(paint);
+    surface.flush();
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);

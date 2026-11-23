@@ -50,13 +50,13 @@ Three cases are yours to handle:
 
 ```ts
 // Leave the canvas exactly as it is: one pixel per unit.
-const sk = await Skia.init({ device, canvas, pixelRatio: 1 });
+const exact = sk.surface(canvas, { pixelRatio: 1 });
 
 // A worker cannot see the screen: the page tells it the ratio.
-const sk = await Skia.init({ device, canvas: offscreen, pixelRatio });
+const inWorker = sk.surface(offscreenCanvas, { pixelRatio });
 
 // A surface that is not on screen has one pixel per unit unless asked.
-const offscreen = sk.makeOffscreenSurface(256, 256, {
+const hidden = sk.offscreenSurface(256, 256, {
   pixelRatio: devicePixelRatio,
 });
 ```

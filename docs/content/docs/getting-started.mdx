@@ -20,12 +20,13 @@ description: From a canvas to a first frame.
 
 <include>../../examples/first-frame.ts</include>
 
-Four things happen here:
+Five things happen here:
 
 1. **The device is yours.** Skia draws with the `GPUDevice` of the page. That is why it can wrap your textures, and why your own WebGPU code can run next to it.
-2. **`Skia.init()` gives you `sk`.** It loads the wasm module, creates Skia's context on the device and configures the canvas. Everything else comes from `sk`.
-3. **A paint says how to draw.** A color here; it also holds strokes, shaders, blend modes and filters.
-4. **A frame is `getCanvas()`, draw, `flush()`.** Nothing reaches the GPU before the flush.
+2. **`Skia.init()` gives you `sk`.** It loads the wasm module and creates Skia's context on the device. Everything else comes from `sk`.
+3. **A surface is where drawing ends up.** `sk.surface()` takes the canvas and configures it for the device.
+4. **A paint says how to draw.** A color here; it also holds strokes, shaders, blend modes and filters.
+5. **A frame is `getCanvas()`, draw, `flush()`.** Nothing reaches the GPU before the flush.
 
 ## Animating
 
@@ -33,15 +34,34 @@ Draw one frame per animation frame. The canvas of a new frame starts from scratc
 
 ```ts
 const frame = (time: number) => {
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("white");
   canvas.rotate(time / 1000, 256, 256);
   canvas.drawRoundedRect(96, 156, 320, 200, 32, paint);
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);
 ```
+
+## One device, many surfaces
+
+`sk` is not tied to a canvas. Call `Skia.init()` once per device, then make a surface for everything you draw to:
+
+```ts
+const sk = await Skia.init({ device });
+
+const main = sk.surface(document.querySelector("#main")!);
+const minimap = sk.surface(document.querySelector("#minimap")!);
+const target = sk.surface(texture); // a GPUTexture of yours
+const offscreen = sk.offscreenSurface(256, 256); // Skia owns the texture
+```
+
+A canvas of the page, an `OffscreenCanvas` and a `GPUTexture` all work. What `sk` makes is shared by all of them: one paint, one image or one runtime effect can be drawn to every surface, and a snapshot of an offscreen surface is an image like any other.
+
+Frames are per surface. Several can be open at once, and they can be flushed in any order.
+
+A second `Skia.init()` is a second copy of the wasm module, with objects of its own. It is what another device needs, not another canvas.
 
 ## Where the module is loaded from
 
@@ -52,9 +72,9 @@ A bundler moves the library into a bundle of yours. Either copy `skia-wasm.js` a
 ```ts
 const sk = await Skia.init({
   device,
-  canvas,
   module: new URL("/skia/skia-wasm.js", location.href).href,
 });
+const surface = sk.surface(canvas);
 ```
 
 ## Next

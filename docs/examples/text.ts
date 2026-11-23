@@ -2,10 +2,8 @@ import { Skia } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const sk = await Skia.init({
-  device,
-  canvas: document.querySelector("canvas")!,
-});
+const sk = await Skia.init({ device });
+const surface = sk.surface(document.querySelector("canvas")!);
 
 // There are no system fonts: a typeface is the bytes of a font file.
 const response = await fetch("Roboto-Regular.ttf");
@@ -30,7 +28,7 @@ const advances = wave.glyphWidths(glyphs);
 const positions = new Float32Array(glyphs.length * 2);
 
 const frame = (time: number) => {
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("white");
 
   canvas.drawText("Skia", left, 192, title, ink);
@@ -51,7 +49,7 @@ const frame = (time: number) => {
   }
   canvas.drawGlyphs(glyphs, positions, (512 - x) / 2, 384, wave, accent);
 
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

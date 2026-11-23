@@ -3,7 +3,8 @@ import { Skia } from "skia-wasm";
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
 const canvas = document.querySelector("canvas")!;
-const sk = await Skia.init({ device, canvas });
+const sk = await Skia.init({ device });
+const surface = sk.surface(canvas);
 
 const COUNT = 64;
 
@@ -14,7 +15,7 @@ b.drawPath(wave, { color: "#3b82f6", style: "stroke", strokeWidth: 6 });
 const program = b.build({ wave });
 
 const scene = program.instantiate();
-sk.surface.setClearColor(1, 1, 1);
+surface.setClearColor(1, 1, 1);
 
 const points = new Float32Array(COUNT * 2);
 const frame = (time: number) => {
@@ -25,7 +26,7 @@ const frame = (time: number) => {
   }
   // One contour through the points: a move, then lines.
   scene.values.wave.setPolyline(points);
-  sk.surface.draw(scene);
+  surface.draw(scene);
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

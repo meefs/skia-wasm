@@ -2,10 +2,8 @@ import { Skia } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const sk = await Skia.init({
-  device,
-  canvas: document.querySelector("canvas")!,
-});
+const sk = await Skia.init({ device });
+const surface = sk.surface(document.querySelector("canvas")!);
 
 const COUNT = 48;
 const LEFT = 32;
@@ -52,14 +50,14 @@ const frame = (time: number) => {
   line.reset().addPolygon(curve);
   area.reset().addPolygon(outline, true);
 
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("white");
   for (let y = 128; y <= BOTTOM; y += 80) {
     canvas.drawLine(LEFT, y, RIGHT, y, grid);
   }
   canvas.drawPath(area, fade);
   canvas.drawPath(line, stroke);
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

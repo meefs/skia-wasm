@@ -2,10 +2,8 @@ import { Skia } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const sk = await Skia.init({
-  device,
-  canvas: document.querySelector("canvas")!,
-});
+const sk = await Skia.init({ device });
+const surface = sk.surface(document.querySelector("canvas")!);
 
 // Three lights that add up to white where they overlap.
 const red = sk.paint({ color: "#ff0000", blendMode: "plus" });
@@ -15,7 +13,7 @@ const black = sk.paint({ color: "black" });
 
 const frame = (time: number) => {
   const inset = 96 + 64 * Math.sin(time / 1000);
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("white");
 
   // The clip is part of the state that save() and restore() keep.
@@ -27,7 +25,7 @@ const frame = (time: number) => {
   canvas.drawCircle(316, 316, 120, blue);
   canvas.restore();
 
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

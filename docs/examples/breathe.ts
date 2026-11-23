@@ -2,10 +2,8 @@ import { Skia } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const sk = await Skia.init({
-  device,
-  canvas: document.querySelector("canvas")!,
-});
+const sk = await Skia.init({ device });
+const surface = sk.surface(document.querySelector("canvas")!);
 
 const COUNT = 6;
 const RADIUS = 96;
@@ -24,7 +22,7 @@ const frame = (time: number) => {
   const progress = 0.5 - 0.5 * Math.cos((time / 3000) * Math.PI);
   const scale = 0.3 + 0.7 * progress;
 
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("#242b38");
   canvas.translate(256, 256);
   canvas.rotate(progress * Math.PI);
@@ -38,7 +36,7 @@ const frame = (time: number) => {
       paints[i % 2]
     );
   }
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

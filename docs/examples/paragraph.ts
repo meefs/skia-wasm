@@ -2,10 +2,8 @@ import { Skia } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const sk = await Skia.init({
-  device,
-  canvas: document.querySelector("canvas")!,
-});
+const sk = await Skia.init({ device });
+const surface = sk.surface(document.querySelector("canvas")!);
 
 const load = async (file: string) => {
   const response = await fetch(file);
@@ -52,11 +50,11 @@ const frame = (time: number) => {
   // Breaking lines is the costly part: it is only done when the width changes.
   paragraph.layout(width);
 
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("white");
   canvas.drawParagraph(paragraph, 32, 32);
   canvas.drawRect(32, 32, width, paragraph.height, box);
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

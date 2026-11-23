@@ -2,10 +2,8 @@ import { Skia } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const sk = await Skia.init({
-  device,
-  canvas: document.querySelector("canvas")!,
-});
+const sk = await Skia.init({ device });
+const surface = sk.surface(document.querySelector("canvas")!);
 
 const response = await fetch("image.png");
 const image = await sk.image(await response.arrayBuffer());
@@ -32,7 +30,7 @@ const paint = sk.paint();
 const through = { paint };
 
 const frame = (time: number) => {
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("white");
 
   paint.colorFilter = null;
@@ -52,7 +50,7 @@ const frame = (time: number) => {
   pulse.dispose();
   canvas.drawImage(image, 264, 264, 224, 224, through);
 
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

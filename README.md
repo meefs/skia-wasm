@@ -15,7 +15,8 @@ This is an independent open source project. It is not an official Skia package.
 A canvas, paints and paths, as in CanvasKit, over plain C exports: no embind, and no wrapper object per call.
 
 ```ts
-const sk = await Skia.init({ device, canvas });
+const sk = await Skia.init({ device });
+const surface = sk.surface(canvas);
 
 const card = sk.paint({ color: "#3b82f6" });
 const glow = sk.paint({
@@ -29,7 +30,7 @@ const glow = sk.paint({
 const font = sk.font(sk.typeface(fontBytes), 32);
 
 function tick(time: number) {
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("white");
   canvas.save();
   canvas.rotate(time / 1000, 256, 256);
@@ -37,7 +38,7 @@ function tick(time: number) {
   canvas.restore();
   canvas.drawCircle(256, 400, 48, glow);
   canvas.drawText("Hello", 32, 64, font, card);
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(tick);
 }
 ```
@@ -78,7 +79,8 @@ A scene is recorded once as an immutable program. Every number of the scene live
 | Resources | Skia objects the commands refer to, by index | Immutable objects |
 
 ```ts
-const sk = await Skia.init({ device, canvas });
+const sk = await Skia.init({ device });
+const surface = sk.surface(canvas);
 const glow = sk.effect<{ iTime: "f32"; color: "vec4" }>(sksl);
 
 // Recorded once. The builder returns slots: offsets into the data block.
@@ -104,7 +106,7 @@ function tick(time: number) {
   f32.set(points, line.points);
   // or, through the typed helper generated from the schema:
   // scene.values.transform.setRotate(time * 0.001, 100, 60);
-  sk.surface.draw(scene);
+  surface.draw(scene);
   requestAnimationFrame(tick);
 }
 ```

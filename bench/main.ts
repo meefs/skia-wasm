@@ -140,13 +140,11 @@ const run = async () => {
   const canvas = document.querySelector("canvas")!;
   const sk = await Skia.init({
     device,
-    canvas,
     module: new URL("../dist/bench/bench-module.js", location.href).href,
-    // The scenes are measured on the pixels the canvas was given.
-    pixelRatio: 1,
   });
+  // The scenes are measured on the pixels the canvas was given.
+  const surface = sk.surface(canvas, { pixelRatio: 1 });
   const module = sk.module as BenchModule;
-  const { surface } = sk;
   surface.setClearColor(1, 1, 1, 1);
   module._sk_stats_enable(1);
   module._sk_stats_null_canvas(NULL_CANVAS ? 1 : 0);

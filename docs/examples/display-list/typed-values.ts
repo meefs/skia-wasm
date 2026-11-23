@@ -3,7 +3,8 @@ import { Skia } from "skia-wasm";
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
 const canvas = document.querySelector("canvas")!;
-const sk = await Skia.init({ device, canvas });
+const sk = await Skia.init({ device });
+const surface = sk.surface(canvas);
 
 const b = sk.builder();
 // A value is allocated in the data block. What comes back is its slot.
@@ -19,11 +20,11 @@ b.restore();
 const program = b.build({ transform });
 
 const scene = program.instantiate();
-sk.surface.setClearColor(1, 1, 1);
+surface.setClearColor(1, 1, 1);
 
 const frame = (time: number) => {
   scene.values.transform.setRotate(time / 1000, 256, 256);
-  sk.surface.draw(scene);
+  surface.draw(scene);
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

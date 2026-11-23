@@ -42,10 +42,9 @@ export interface SurfaceOptions {
   pixelRatio?: number;
 }
 
-export interface InitOptions extends SurfaceOptions {
+export interface InitOptions {
+  /** The device Skia draws with: every surface of `sk` is on it. */
   device: GPUDevice;
-  /** What `sk.surface` draws to. */
-  canvas?: HTMLCanvasElement | OffscreenCanvas;
   /**
    * The Emscripten module built from src/cpp: its URL or its factory.
    * Defaults to skia-wasm.js next to this file.
@@ -307,10 +306,10 @@ export class OffscreenSurface extends NativeObject {
 
 /**
  * Skia Graphite on the page's GPUDevice: the context that everything else
- * comes from.
+ * comes from. It has no canvas of its own: surface() gives one surface
+ * per canvas or texture, as many as the page needs.
  */
 export class Skia {
-  private canvasSurface: Surface | null = null;
   private readonly runtime: Runtime;
   private readonly shaders: ReturnType<typeof shaders>;
 
@@ -349,22 +348,11 @@ export class Skia {
     if (!module._sk_init(module.WebGPU.importJsDevice(options.device))) {
       throw new Error(lastError(module));
     }
-    const skia = new Skia(module, options.device);
-    if (options.canvas) {
-      skia.canvasSurface = skia.makeSurface(options.canvas, options);
-    }
-    return skia;
+    return new Skia(module, options.device);
   }
 
-  // ---- Surfaces.
-
-  /** The surface of the canvas given to init(). */
-  get surface() {
-    if (this.canvasSurface === null) {
-      throw new Error("Skia.init() was not given a canvas.");
-    }
-    return this.canvasSurface;
-  }
+  // ---- Surfaces. Any number of them, all on the device of init(): what is
+  // made by `sk` can be drawn to every one.
 
   /**
    * A surface on a canvas, which it configures, or on a texture.
@@ -374,7 +362,7 @@ export class Skia {
    * needs for the place it takes: twice as many each way on a screen with a
    * device pixel ratio of 2. Pass `pixelRatio: 1` to leave the canvas alone.
    */
-  makeSurface(
+  surface(
     target: HTMLCanvasElement | OffscreenCanvas | GPUTexture,
     options: SurfaceOptions = {}
   ) {
@@ -449,7 +437,7 @@ export class Skia {
   }
 
   /** A surface that is not shown: draw to it, then take a snapshot. */
-  makeOffscreenSurface(
+  offscreenSurface(
     width: number,
     height: number,
     options: SurfaceOptions = {}

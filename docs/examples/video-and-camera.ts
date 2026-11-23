@@ -3,10 +3,8 @@ import type { ColorFilter } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const sk = await Skia.init({
-  device,
-  canvas: document.querySelector("canvas")!,
-});
+const sk = await Skia.init({ device });
+const surface = sk.surface(document.querySelector("canvas")!);
 
 // A playing video element: from a file, or from a stream such as the camera.
 const play = async (source: string | MediaStream) => {
@@ -97,7 +95,7 @@ const frame = (time: number) => {
   film.update();
   camera.update();
 
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("black");
   // The film fills the width; the camera is a tilting picture in its corner.
   canvas.drawImage(
@@ -118,7 +116,7 @@ const frame = (time: number) => {
     through
   );
   canvas.drawRect(320, 480 - insetHeight, 160, insetHeight, border);
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

@@ -2,10 +2,8 @@ import { Skia } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const sk = await Skia.init({
-  device,
-  canvas: document.querySelector("canvas")!,
-});
+const sk = await Skia.init({ device });
+const surface = sk.surface(document.querySelector("canvas")!);
 
 const colors = ["#f97316", "#ec4899", "#6366f1"];
 
@@ -42,7 +40,7 @@ const conical = sk.paint({
 const sweep = sk.paint();
 
 const frame = (time: number) => {
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("white");
   canvas.drawRoundedRect(32, 32, 192, 192, 24, linear);
   canvas.drawRoundedRect(288, 32, 192, 192, 24, radial);
@@ -59,7 +57,7 @@ const frame = (time: number) => {
   turning.dispose();
   canvas.drawRoundedRect(288, 288, 192, 192, 24, sweep);
 
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

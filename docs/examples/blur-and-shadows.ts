@@ -2,10 +2,8 @@ import { Skia } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const sk = await Skia.init({
-  device,
-  canvas: document.querySelector("canvas")!,
-});
+const sk = await Skia.init({ device });
+const surface = sk.surface(document.querySelector("canvas")!);
 
 const blobs = ["#f97316", "#ec4899", "#6366f1"].map((color) =>
   sk.paint({ color })
@@ -31,7 +29,7 @@ const layer = { backdrop: frost };
 
 const frame = (time: number) => {
   const t = time / 1000;
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("#e2e8f0");
 
   blobs.forEach((blob, i) => {
@@ -54,7 +52,7 @@ const frame = (time: number) => {
   canvas.drawRoundedRect(96, 320, 200, 128, 16, card);
   canvas.drawCircle(376, 384, 40 + 8 * Math.sin(t * 3), glow);
 
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

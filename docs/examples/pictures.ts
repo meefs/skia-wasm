@@ -2,10 +2,8 @@ import { Skia } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const sk = await Skia.init({
-  device,
-  canvas: document.querySelector("canvas")!,
-});
+const sk = await Skia.init({ device });
+const surface = sk.surface(document.querySelector("canvas")!);
 
 // Recorded once: a petal made of a hundred strokes.
 const recorder = sk.pictureRecorder();
@@ -25,7 +23,7 @@ for (let i = 0; i < 100; i++) {
 const picture = recorder.finish();
 
 const frame = (time: number) => {
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("#0f172a");
   canvas.translate(256, 256);
   canvas.rotate(time / 4000);
@@ -37,7 +35,7 @@ const frame = (time: number) => {
     canvas.drawPicture(picture);
     canvas.restore();
   }
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

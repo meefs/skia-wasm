@@ -88,10 +88,7 @@ const run = async () => {
   step("loading the module");
   const sk = await Skia.init({
     device,
-    canvas: document.querySelector<HTMLCanvasElement>("#gpu")!,
     module: new URL("../dist/lib/skia-wasm.js", location.href).href,
-    // The checks below read pixels back: one per unit, whatever the screen.
-    pixelRatio: 1,
   });
 
   const target = device.createTexture({
@@ -102,7 +99,7 @@ const run = async () => {
       GPUTextureUsage.TEXTURE_BINDING |
       GPUTextureUsage.COPY_SRC,
   });
-  const surface = sk.makeSurface(target);
+  const surface = sk.surface(target);
   surface.setClearColor(1, 1, 1, 1);
 
   const readback = device.createBuffer({
@@ -401,7 +398,7 @@ const run = async () => {
   // ---- Offscreen surfaces, their pixels and their files: before the frame,
   // since the GPU answers a read later.
   step("drawing offscreen");
-  const offscreen = sk.makeOffscreenSurface(32, 32);
+  const offscreen = sk.offscreenSurface(32, 32);
   const hidden = offscreen.getCanvas();
   hidden.clear("orange");
   hidden.drawCircle(16, 16, 8, sk.paint({ color: "black" }));
@@ -1249,15 +1246,16 @@ const run = async () => {
 
   // ---- The canvas surface: two frames, straight to the canvas.
   step("drawing to the canvas");
-  sk.surface.setClearColor(1, 1, 1, 1);
+  const element = document.querySelector<HTMLCanvasElement>("#gpu")!;
+  // The checks read pixels back: one per unit, whatever the screen.
+  const canvasSurface = sk.surface(element, { pixelRatio: 1 });
+  canvasSurface.setClearColor(1, 1, 1, 1);
   for (let frame = 0; frame < 2; frame++) {
-    const onscreen = sk.surface.getCanvas();
+    const onscreen = canvasSurface.getCanvas();
     onscreen.drawRect(0, 0, 64, 64, fill(frame === 0 ? "red" : "#0080ff"));
-    sk.surface.flush();
+    canvasSurface.flush();
   }
-  const context = document
-    .querySelector<HTMLCanvasElement>("#gpu")!
-    .getContext("webgpu") as GPUCanvasContext;
+  const context = element.getContext("webgpu") as GPUCanvasContext;
   const canvasPixels = await read(context.getCurrentTexture());
   const blueFirst = navigator.gpu.getPreferredCanvasFormat() === "bgra8unorm";
   const at = (32 * WIDTH + 32) * 4;
@@ -1277,7 +1275,7 @@ const run = async () => {
   });
   expectTrue(
     "a surface knows its size",
-    sk.surface.width === WIDTH && sk.surface.height === HEIGHT
+    canvasSurface.width === WIDTH && canvasSurface.height === HEIGHT
   );
 
   // ---- Density: a surface is drawn to in units, each of several pixels.
@@ -1312,7 +1310,7 @@ const run = async () => {
       buffer.unmap();
       return pixel;
     };
-    const twice = sk.makeSurface(dense, { pixelRatio: 2 });
+    const twice = sk.surface(dense, { pixelRatio: 2 });
     twice.setClearColor(1, 1, 1, 1);
     expectTrue(
       "a surface with a pixel ratio is measured in units",
@@ -1381,24 +1379,24 @@ const run = async () => {
     square.dispose();
 
     // A canvas of the page is given the pixels, and keeps its place.
-    const element = document.createElement("canvas");
-    element.width = 64;
-    element.height = 32;
-    document.body.append(element);
-    const onPage = sk.makeSurface(element, { pixelRatio: 2 });
+    const grown = document.createElement("canvas");
+    grown.width = 64;
+    grown.height = 32;
+    document.body.append(grown);
+    const onPage = sk.surface(grown, { pixelRatio: 2 });
     expectTrue(
       "a canvas gets more pixels and keeps its size on the page",
-      element.width === 128 &&
-        element.height === 64 &&
-        element.clientWidth === 64 &&
-        element.clientHeight === 32 &&
+      grown.width === 128 &&
+        grown.height === 64 &&
+        grown.clientWidth === 64 &&
+        grown.clientHeight === 32 &&
         onPage.width === 64 &&
         onPage.height === 32,
       [
-        element.width,
-        element.height,
-        element.clientWidth,
-        element.clientHeight,
+        grown.width,
+        grown.height,
+        grown.clientWidth,
+        grown.clientHeight,
         onPage.width,
         onPage.height,
       ]
@@ -1409,7 +1407,7 @@ const run = async () => {
     untouched.style.width = "128px";
     untouched.style.height = "64px";
     document.body.append(untouched);
-    const stretched = sk.makeSurface(untouched);
+    const stretched = sk.surface(untouched);
     expectTrue(
       "a canvas that CSS enlarges gets the pixels of its size on the page",
       untouched.width === 128 * devicePixelRatio &&
@@ -1427,17 +1425,17 @@ const run = async () => {
     exact.width = 64;
     exact.height = 32;
     document.body.append(exact);
-    sk.makeSurface(exact, { pixelRatio: 1 });
+    sk.surface(exact, { pixelRatio: 1 });
     expectTrue(
       "a pixel ratio of 1 leaves a canvas alone",
       exact.width === 64 && exact.style.width === "",
       [exact.width, exact.style.width]
     );
-    for (const canvasElement of [element, untouched, exact]) {
+    for (const canvasElement of [grown, untouched, exact]) {
       canvasElement.remove();
     }
 
-    const hidden2 = sk.makeOffscreenSurface(16, 16, { pixelRatio: 2 });
+    const hidden2 = sk.offscreenSurface(16, 16, { pixelRatio: 2 });
     hidden2.getCanvas().clear("red");
     const dense2 = hidden2.snapshot();
     expectTrue(
@@ -1446,6 +1444,97 @@ const run = async () => {
       [hidden2.width, dense2.width, dense2.height]
     );
   }
+
+  // ---- Several surfaces on the one device: frames open at the same time on
+  // two textures and on the canvas, an offscreen surface made and flushed in
+  // between, and the same paint and image drawn to all of them.
+  step("drawing to several surfaces");
+  const secondTarget = device.createTexture({
+    size: [WIDTH, HEIGHT],
+    format: "rgba8unorm",
+    usage:
+      GPUTextureUsage.RENDER_ATTACHMENT |
+      GPUTextureUsage.TEXTURE_BINDING |
+      GPUTextureUsage.COPY_SRC,
+  });
+  const secondSurface = sk.surface(secondTarget);
+  secondSurface.setClearColor(1, 1, 1, 1);
+  const shared = fill("#0080ff");
+  const first = surface.getCanvas();
+  const second = secondSurface.getCanvas();
+  const third = canvasSurface.getCanvas();
+  first.drawRect(0, 0, 64, 64, shared);
+  second.drawRect(64, 0, 64, 64, shared);
+  // Flushing a surface submits what the others drew so far: their frames
+  // stay open and go on.
+  const between = sk.offscreenSurface(32, 32);
+  between.getCanvas().clear("red");
+  between.flush();
+  const stamp = between.snapshot();
+  first.drawImage(stamp, 128, 0);
+  second.drawImage(stamp, 0, 64);
+  third.drawImage(stamp, 0, 0, 64, 64);
+  expectTrue(
+    "each surface has its own canvas",
+    first !== second && second !== third && surface.getCanvas() === first
+  );
+  // Not in the order they began.
+  secondSurface.flush();
+  expectThrows("a flush ends the frame of its surface only", () => {
+    second.save();
+  });
+  first.drawRect(192, 0, 64, 64, shared);
+  surface.flush();
+  canvasSurface.flush();
+  // The canvas first: its texture is only there until the frame is presented.
+  const thirdPixels = await read(context.getCurrentTexture());
+  const firstPixels = await read(target);
+  const secondPixels = await read(secondTarget);
+  const rgb = (from: Uint8Array, x: number, y: number, bgra = false) => {
+    const i = (y * WIDTH + x) * 4;
+    return bgra
+      ? [from[i + 2], from[i + 1], from[i]]
+      : [from[i], from[i + 1], from[i + 2]];
+  };
+  const blue = [0, 128, 255];
+  const red = [255, 0, 0];
+  const white = [255, 255, 255];
+  expectClose("surfaces: the first, before", rgb(firstPixels, 32, 32), blue, 3);
+  expectClose(
+    "surfaces: the first, an image",
+    rgb(firstPixels, 144, 16),
+    red,
+    3
+  );
+  expectClose("surfaces: the first, after", rgb(firstPixels, 224, 32), blue, 3);
+  expectClose(
+    "surfaces: the first, cleared",
+    rgb(firstPixels, 96, 32),
+    white,
+    3
+  );
+  expectClose("surfaces: the second", rgb(secondPixels, 96, 32), blue, 3);
+  expectClose(
+    "surfaces: the second, an image",
+    rgb(secondPixels, 16, 80),
+    red,
+    3
+  );
+  expectClose(
+    "surfaces: the second, cleared",
+    rgb(secondPixels, 32, 32),
+    white,
+    3
+  );
+  expectClose(
+    "surfaces: the canvas",
+    rgb(thirdPixels, 32, 32, blueFirst),
+    red,
+    3
+  );
+  between.dispose();
+  stamp.dispose();
+  secondTarget.destroy();
 
   step("waiting for pending GPU work");
   let pending = sk.tick();

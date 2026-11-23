@@ -3,7 +3,8 @@ import { Skia, paintColor } from "skia-wasm";
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
 const canvas = document.querySelector("canvas")!;
-const sk = await Skia.init({ device, canvas });
+const sk = await Skia.init({ device });
+const surface = sk.surface(canvas);
 
 // One program: a rounded rect around the origin.
 const b = sk.builder();
@@ -25,7 +26,7 @@ const cards = Array.from({ length: COLUMNS * COLUMNS }, (_, i) => {
   return { card, x: 32 + column * 64, y: 32 + row * 64 };
 });
 const instances = cards.map(({ card }) => card);
-sk.surface.setClearColor(1, 1, 1);
+surface.setClearColor(1, 1, 1);
 
 const frame = (time: number) => {
   cards.forEach(({ card, x, y }, i) => {
@@ -36,7 +37,7 @@ const frame = (time: number) => {
     card.values.transform.set(cos, -sin, x, sin, cos, y);
   });
   // Every instance is drawn by one call into wasm.
-  sk.surface.draw(instances);
+  surface.draw(instances);
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

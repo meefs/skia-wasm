@@ -3,10 +3,8 @@ import type { Color } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const sk = await Skia.init({
-  device,
-  canvas: document.querySelector("canvas")!,
-});
+const sk = await Skia.init({ device });
+const surface = sk.surface(document.querySelector("canvas")!);
 
 const COUNT = 800;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
@@ -26,7 +24,7 @@ const frame = (time: number) => {
   const t = time / 1000;
   const spread = 7 + 1.5 * Math.sin(t);
 
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("#0f172a");
   // 800 dots a frame: one call to set the color, one to draw.
   for (let i = 0; i < COUNT; i++) {
@@ -40,7 +38,7 @@ const frame = (time: number) => {
       paint
     );
   }
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

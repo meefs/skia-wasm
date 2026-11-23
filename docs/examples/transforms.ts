@@ -2,17 +2,15 @@ import { Skia } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const sk = await Skia.init({
-  device,
-  canvas: document.querySelector("canvas")!,
-});
+const sk = await Skia.init({ device });
+const surface = sk.surface(document.querySelector("canvas")!);
 
 const card = sk.paint({ color: "#3b82f6" });
 const dot = sk.paint({ color: "#f97316" });
 
 const frame = (time: number) => {
   const t = time / 1000;
-  const canvas = sk.surface.getCanvas();
+  const canvas = surface.getCanvas();
   canvas.clear("white");
 
   // What is between save() and restore() is drawn in its own space.
@@ -29,7 +27,7 @@ const frame = (time: number) => {
   canvas.restore();
   canvas.restore();
 
-  sk.surface.flush();
+  surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);
