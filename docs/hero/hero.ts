@@ -7,6 +7,9 @@
  * to stay in front (the word "skia", the subtitle and the buttons) in one,
  * everything else in the other. A fragment shader then draws a ribbon between
  * the two. It can, because what Skia draws is a texture like any other.
+ *
+ * The ribbon draws itself across the page, curls into a loop where it passes
+ * over itself, and then sways slowly.
  */
 import { Skia, parseColor } from "skia-wasm";
 import type { Surface } from "skia-wasm";
@@ -17,6 +20,10 @@ import type { Hero, HeroLayout, MountHero } from "./types";
 // path as straight between two of them: close enough to stay within half a
 // pixel of the tightest bend on a wide screen.
 const SAMPLES = 256;
+// The stretches between two samples go by groups, each with a circle around
+// it: a pixel far from the circle skips the whole group.
+const GROUP = 16;
+const GROUPS = Math.ceil((SAMPLES - 1) / GROUP);
 
 interface Look {
   // The pigment along the ribbon: one cycle of the palette from end to end.
@@ -71,7 +78,8 @@ const STOPS = looks.light.colors.length;
 const LIGHT = [-0.42, -0.62, 0.66];
 
 // The folds of the ribbon, as waypoints relative to the center of the canvas
-// at scale 1, where the ribbon is 90 wide.
+// at scale 1, where the ribbon is 90 wide. Past the title, the ribbon curls
+// into a loop and comes back up through its own path.
 const FOLDS: [number, number][] = [
   [-470, 160],
   [-360, 175],
@@ -82,32 +90,63 @@ const FOLDS: [number, number][] = [
   [-325, -175],
   [-230, -135],
   [-50, -25],
-  [150, 105],
-  [265, 175],
-  [330, 170],
-  [350, 95],
-  [330, -25],
-  [325, -115],
-  [360, -180],
-  [440, -190],
-  [550, -145],
+  [60, 36],
+  [180, 56],
+  [290, 44],
+  [390, 30],
+  [461, 59],
+  [490, 130],
+  [461, 201],
+  [390, 230],
+  [319, 201],
+  [290, 130],
+  [287, 40],
+  [291, -60],
+  [315, -140],
+  [372, -195],
+  [460, -205],
+  [560, -150],
 ];
+// The fold at the far end of the loop. What comes after it passes over what
+// comes before.
+const TURN = 15;
 const RIBBON_WIDTH = 90;
 // The size the folds are designed for at scale 1.
 const DESIGN_WIDTH = 1040;
 const DESIGN_HEIGHT = 620;
-// The ribbon draws itself across the page in two steps. Its first fifth,
-// which mostly comes in from beyond the edge, takes a fraction of a second.
-// The rest follows an easing that would take this long from start to end,
-// joined where that easing reaches a fifth, and at the speed it has there.
-const INTRO = 0.2;
+// The ribbon draws itself across the page in two steps. Its start, which
+// mostly comes in from beyond the edge, takes a fraction of a second. The
+// rest follows an easing that would take this long from start to end, joined
+// where that easing reaches the end of the start, and at the speed it has
+// there. The title is crossed a good second after the page shows it.
+const INTRO = 0.17;
 const INTRO_MS = 400;
-const DRAW_MS = 6000;
+const DRAW_MS = 6400;
 // One slow revolution of the palette, once drawn.
 const DRIFT_MS = 48000;
+// The ribbon sways: every waypoint drifts around its place, by this much at
+// scale 1, and what is next to it drifts along. One period per axis, so that
+// the motion takes a while to come back to where it was.
+const SWAY = 14;
+const SWAY_MS = [11000, 8000];
+// The sway is too slow for every frame to show: one in this many
+// milliseconds is enough once the ribbon is drawn.
+const SWAY_FRAME_MS = 30;
+// How finely the path between two waypoints is read before it is resampled.
+const STEPS = 16;
 const shader = /* wgsl */ `
 const SAMPLES = ${SAMPLES};
+const GROUP = ${GROUP};
+const GROUPS = ${GROUPS};
 const STOPS = ${STOPS};
+// The shadow of the ribbon on itself: how far it reaches, in radii, on the
+// side of the light and on the side away from it, then how dark it gets.
+const SHADOW_NEAR = 0.25;
+const SHADOW_FAR = 0.9;
+const SHADOW_DEPTH = 0.5;
+// How many stretches on each side of the turn of the loop are read as one
+// ribbon, whatever the strand.
+const JOIN = 8;
 
 struct Uniforms {
   // The width of the ribbon, how many samples of it are drawn so far, where
@@ -117,9 +156,12 @@ struct Uniforms {
   light: vec4f,
   // xyz, then how much the lit side takes of the highlight.
   shadow: vec4f,
+  // xyz, then the sample where the loop of the ribbon turns back.
   highlight: vec4f,
   // The palette, in Oklab.
   stops: array<vec4f, STOPS>,
+  // A circle around every group of stretches: xy, then its radius.
+  groups: array<vec4f, GROUPS>,
   // xy: a point of the spine, at evenly spaced distances. The rest is the
   // stride of an array in a uniform buffer.
   spine: array<vec4f, SAMPLES>,
@@ -171,6 +213,19 @@ fn vs(@builtin(vertex_index) index: u32) -> @builtin(position) vec4f {
   return vec4f(corners[index], 0.0, 1.0);
 }
 
+// The ribbon read as a round tube: the normal faces the viewer on the spine
+// and leans away from it toward the edges. The side turned away from the
+// light slides toward the shadow tint, the side facing it lifts toward the
+// highlight.
+fn pearl(side: vec2f, t: f32) -> vec3f {
+  let across = side / max(length(side), 1.0);
+  let normal = vec3f(across, sqrt(max(1.0 - dot(across, across), 0.0)));
+  let facing = dot(normal, normalize(u.light.xyz));
+  var color = pigment(t / f32(SAMPLES - 1) + u.ribbon.z);
+  color = mix(mix(color, u.shadow.xyz, u.light.w), color, smoothstep(-0.8, 0.7, facing));
+  return mix(color, u.highlight.xyz, pow(max(facing, 0.0), 2.5) * u.shadow.w);
+}
+
 @fragment
 fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let p = position.xy;
@@ -178,6 +233,8 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
   let above = textureLoad(over, vec2i(p), 0);
   let radius = 0.5 * u.ribbon.x;
   let end = u.ribbon.y;
+  let pixel = u.ribbon.w;
+  let turn = u.highlight.w;
 
   // The ribbon is the union of the capsules around the stretches of its
   // spine: p is in it if one of them has a point within its radius of p.
@@ -187,60 +244,94 @@ fn fs(@builtin(position) position: vec4f) -> @location(0) vec4f {
   // p: where it is across the ribbon, and how far along. Every stretch
   // weighs in by how deep p is under its surface, so that one takes over
   // from the other within a few pixels instead of at a line.
+  //
+  // Where the ribbon crosses itself, nothing is to be blended: one strand is
+  // over the other. So there are two accounts of p: one by the stretches
+  // before the turn of the loop, one by those after it. Around the turn the
+  // two strands are one ribbon, and its stretches weigh in both accounts.
   let blend = 0.08 * radius;
-  // How far p is from the surface of the ribbon: negative inside.
-  var nearest = 1e9;
-  var weight = 0.0;
-  // Where p is across the ribbon: zero on the spine, one at the edge.
-  var across = vec2f(0.0);
+  // How far p is from the surface of a strand: negative inside.
+  var nearest = array(1e9, 1e9);
+  var weight = array(0.0, 0.0);
+  // Where p is across a strand: zero on the spine, one at the edge.
+  var across = array(vec2f(0.0), vec2f(0.0));
   // How far p is along the path, in samples.
-  var t = 0.0;
+  var along = array(0.0, 0.0);
+  // A stretch matters to p as far as its shadow reaches.
+  let range = SHADOW_FAR * radius + 2.0 * pixel;
   let last = i32(ceil(end));
-  for (var i = 1; i < SAMPLES; i++) {
-    if (i > last) {
+  // The first stretch after the turn. The strand that starts there has no
+  // round end: it is cut straight across, where the other one stops.
+  let after = i32(floor(turn)) + 1;
+  let cut = u.spine[after - 1].xy;
+  let behind = dot(p - cut, u.spine[after].xy - cut) < 0.0;
+  for (var g = 0; g < GROUPS; g++) {
+    let first = g * GROUP + 1;
+    if (first > last) {
       break;
     }
-    let a = u.spine[i - 1].xy;
-    let ab = u.spine[i].xy - a;
-    // How much of this stretch is drawn: all of it, except the last one,
-    // whose end is the round tip of the ribbon.
-    let reach = min(end - f32(i - 1), 1.0);
-    let h = clamp(dot(p - a, ab) / dot(ab, ab), 0.0, reach);
-    let c = a + h * ab;
-    let d = distance(p, c) - radius;
-    // Too far to cover p, or to weigh on what covers it.
-    if (d > 2.0 * u.ribbon.w) {
+    let around = u.groups[g];
+    if (distance(p, around.xy) > around.z + radius + range) {
       continue;
     }
-    nearest = min(nearest, d);
-    let w = exp(-d / blend);
-    weight += w;
-    across += w * (p - c) / radius;
-    t += w * (f32(i - 1) + h);
+    let stop = min(first + GROUP, min(last + 1, SAMPLES));
+    for (var i = first; i < stop; i++) {
+      let a = u.spine[i - 1].xy;
+      let ab = u.spine[i].xy - a;
+      // How much of this stretch is drawn: all of it, except the last one,
+      // whose end is the round tip of the ribbon.
+      let reach = min(end - f32(i - 1), 1.0);
+      let h = clamp(dot(p - a, ab) / dot(ab, ab), 0.0, reach);
+      let c = a + h * ab;
+      let d = distance(p, c) - radius;
+      if (d > range) {
+        continue;
+      }
+      if (i < after) {
+        nearest[0] = min(nearest[0], d);
+      } else if (i >= after + JOIN || !behind) {
+        nearest[1] = min(nearest[1], d);
+      }
+      let w = exp(-d / blend);
+      if (i < after + JOIN) {
+        weight[0] += w;
+        across[0] += w * (p - c) / radius;
+        along[0] += w * (f32(i - 1) + h);
+      }
+      if (i >= after - JOIN) {
+        weight[1] += w;
+        across[1] += w * (p - c) / radius;
+        along[1] += w * (f32(i - 1) + h);
+      }
+    }
   }
 
-  let coverage = saturate(0.5 - nearest / u.ribbon.w);
-  if (coverage <= 0.0) {
-    return above + below * (1.0 - above.a);
+  // How much of the pixel each strand covers. Premultiplied from here on.
+  let lower = saturate(0.5 - nearest[0] / pixel);
+  let upper = saturate(0.5 - nearest[1] / pixel);
+  var ribbon = vec4f(0.0);
+  if (lower > 0.0 && upper < 1.0) {
+    let t = along[0] / weight[0];
+    var color = pearl(across[0] / weight[0], t);
+    if (weight[1] > 0.0) {
+      // The strand that passes over this one casts a soft shadow on it,
+      // which reaches further on the side away from the light. There is
+      // none near the turn, where the two strands are one ribbon.
+      let outward = across[1] / weight[1];
+      let lee = 0.5 - 0.5 * dot(outward / max(length(outward), 1e-4), normalize(u.light.xy));
+      let reach = mix(SHADOW_NEAR, SHADOW_FAR, lee) * radius;
+      let shade = (1.0 - smoothstep(0.0, reach, nearest[1])) * smoothstep(0.0, 12.0, turn - t);
+      color = mix(color, color * u.shadow.xyz, SHADOW_DEPTH * shade);
+    }
+    ribbon = vec4f(color, 1.0) * lower;
   }
-  across /= weight;
-  t /= weight;
+  if (upper > 0.0) {
+    let color = pearl(across[1] / weight[1], along[1] / weight[1]);
+    ribbon = vec4f(color, 1.0) * upper + ribbon * (1.0 - upper);
+  }
 
-  // The ribbon read as a round tube: the normal faces the viewer on the
-  // spine and leans away from it toward the edges.
-  across /= max(length(across), 1.0);
-  let normal = vec3f(across, sqrt(max(1.0 - dot(across, across), 0.0)));
-  let facing = dot(normal, normalize(u.light.xyz));
-  // The side turned away from the light slides toward the shadow tint, the
-  // side facing it lifts toward the highlight.
-  var color = pigment(t / f32(SAMPLES - 1) + u.ribbon.z);
-  color = mix(mix(color, u.shadow.xyz, u.light.w), color, smoothstep(-0.8, 0.7, facing));
-  color = mix(color, u.highlight.xyz, pow(max(facing, 0.0), 2.5) * u.shadow.w);
-  let ribbon = vec4f(color, 1.0) * coverage;
-
-  // The ribbon over one layer, the other layer over the ribbon: everything
-  // is premultiplied.
-  return above + (ribbon + below * (1.0 - coverage)) * (1.0 - above.a);
+  // The ribbon over one layer, the other layer over the ribbon.
+  return above + (ribbon + below * (1.0 - ribbon.a)) * (1.0 - above.a);
 }
 `;
 
@@ -304,6 +395,68 @@ const waypoints = (width: number, height: number, scale: number) => {
   ];
 };
 
+/** How far a waypoint is from its place at a time, at scale 1. */
+const sway = (x: number, y: number, elapsed: number) => [
+  SWAY * Math.sin((2 * Math.PI * elapsed) / SWAY_MS[0] + 0.004 * x + 0.003 * y),
+  SWAY * Math.cos((2 * Math.PI * elapsed) / SWAY_MS[1] + 0.003 * x - 0.005 * y),
+];
+
+/**
+ * Writes SAMPLES points at even distances along the Catmull-Rom spline
+ * through some waypoints, as x, y and two zeros each. The first and the last
+ * waypoint only steer the tangents at the ends.
+ *
+ * Returns the sample at which the spline goes through the waypoint `turn`.
+ */
+const sampleSpine = (
+  points: number[][],
+  turn: number,
+  out: Float32Array,
+  offset: number
+) => {
+  // The spline as many short lines, and how far along each of them starts.
+  const count = (points.length - 3) * STEPS + 1;
+  const fine = new Float32Array(count * 2);
+  const lengths = new Float32Array(count);
+  for (let i = 0; i < count; i++) {
+    const span = Math.min(Math.floor(i / STEPS), points.length - 4);
+    const [p0, p1, p2, p3] = points.slice(span, span + 4);
+    const s = i / STEPS - span;
+    const r = 1 - s;
+    for (let axis = 0; axis < 2; axis++) {
+      // The same curve as a cubic Bézier from p1 to p2.
+      const b1 = p1[axis] + (p2[axis] - p0[axis]) / 6;
+      const b2 = p2[axis] - (p3[axis] - p1[axis]) / 6;
+      fine[i * 2 + axis] =
+        r * r * r * p1[axis] +
+        3 * r * r * s * b1 +
+        3 * r * s * s * b2 +
+        s * s * s * p2[axis];
+    }
+    if (i > 0) {
+      lengths[i] =
+        lengths[i - 1] +
+        Math.hypot(
+          fine[i * 2] - fine[i * 2 - 2],
+          fine[i * 2 + 1] - fine[i * 2 - 1]
+        );
+    }
+  }
+  const total = lengths[count - 1];
+  let k = 0;
+  for (let i = 0; i < SAMPLES; i++) {
+    const at = (i / (SAMPLES - 1)) * total;
+    while (k < count - 2 && lengths[k + 1] < at) {
+      k++;
+    }
+    const f = (at - lengths[k]) / (lengths[k + 1] - lengths[k] || 1);
+    out[offset + i * 4] = fine[k * 2] + f * (fine[k * 2 + 2] - fine[k * 2]);
+    out[offset + i * 4 + 1] =
+      fine[k * 2 + 1] + f * (fine[k * 2 + 3] - fine[k * 2 + 1]);
+  }
+  return (lengths[(turn - 1) * STEPS] / total) * (SAMPLES - 1);
+};
+
 interface Shared {
   device: GPUDevice;
   format: GPUTextureFormat;
@@ -349,8 +502,10 @@ export const mountHero: MountHero = async (canvas, assets, initial) => {
   const context = canvas.getContext("webgpu")!;
   context.configure({ device, format, alphaMode: "premultiplied" });
 
-  // Four vectors, the palette and the spine.
-  const uniforms = new Float32Array((4 + STOPS + SAMPLES) * 4);
+  // Four vectors, the palette, the circles of the groups and the spine.
+  const uniforms = new Float32Array((4 + STOPS + GROUPS + SAMPLES) * 4);
+  const GROUPS_AT = (4 + STOPS) * 4;
+  const SPINE_AT = GROUPS_AT + GROUPS * 4;
   const buffer = device.createBuffer({
     size: uniforms.byteLength,
     usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
@@ -363,9 +518,15 @@ export const mountHero: MountHero = async (canvas, assets, initial) => {
   // The two layers that Skia draws: behind the ribbon and in front of it.
   let layers: { texture: GPUTexture; surface: Surface }[] = [];
   let bindings: GPUBindGroup | null = null;
+  // The waypoints of the ribbon for this layout, and the scale of its folds.
+  let anchors: number[][] = [];
+  let scale = 1;
   let started = performance.now();
+  // When the last frame was drawn, and whether the ribbon was still drawing
+  // itself in it.
+  let painted = 0;
+  let drawing = true;
   let request = 0;
-  let timer = 0;
   let alive = true;
 
   // What Skia draws: every element of the page, where the page has it. An
@@ -457,9 +618,9 @@ export const mountHero: MountHero = async (canvas, assets, initial) => {
     layers.forEach(({ surface }) => surface.flush());
   };
 
-  // The spine of the ribbon, the palette and the light, for this layout.
+  // The palette and the light, and where the ribbon goes in this layout.
   const writeScene = (width: number, height: number) => {
-    const scale = Math.min(height / DESIGN_HEIGHT, width / DESIGN_WIDTH);
+    scale = Math.min(height / DESIGN_HEIGHT, width / DESIGN_WIDTH);
     const look = layout.dark ? looks.dark : looks.light;
     uniforms.set([RIBBON_WIDTH * scale, 0, 0, layout.pixelRatio], 0);
     uniforms.set([...LIGHT, look.depth], 4);
@@ -468,37 +629,55 @@ export const mountHero: MountHero = async (canvas, assets, initial) => {
     look.colors.forEach((color, i) => {
       uniforms.set(srgbToOklab(color), 16 + i * 4);
     });
-    // A Catmull-Rom spline through the waypoints, as cubics. The first and
-    // the last one only steer the end tangents.
-    const points = waypoints(width, height, scale);
-    const spine = sk.path().moveTo(points[1][0], points[1][1]);
-    for (let i = 1; i < points.length - 2; i++) {
-      const [p0, p1, p2, p3] = points.slice(i - 1, i + 3);
-      spine.cubicTo(
-        p1[0] + (p2[0] - p0[0]) / 6,
-        p1[1] + (p2[1] - p0[1]) / 6,
-        p2[0] - (p3[0] - p1[0]) / 6,
-        p2[1] - (p3[1] - p1[1]) / 6,
-        p2[0],
-        p2[1]
-      );
+    anchors = waypoints(width, height, scale);
+  };
+
+  // The spine of the ribbon at a time: the waypoints wherever the sway has
+  // them, the points at even distances along the path through them, and a
+  // circle around every group of stretches.
+  const writeSpine = (elapsed: number) => {
+    const cx = canvas.width / 2;
+    const cy = canvas.height / 2;
+    const points = layout.still
+      ? anchors
+      : anchors.map(([x, y]) => {
+          const [dx, dy] = sway((x - cx) / scale, (y - cy) / scale, elapsed);
+          return [x + dx * scale, y + dy * scale];
+        });
+    // The folds come after the three waypoints of the lead-in.
+    uniforms[15] = sampleSpine(points, 3 + TURN, uniforms, SPINE_AT);
+    for (let g = 0; g < GROUPS; g++) {
+      const from = SPINE_AT + g * GROUP * 4;
+      const to = SPINE_AT + Math.min((g + 1) * GROUP, SAMPLES - 1) * 4;
+      let left = Infinity;
+      let top = Infinity;
+      let right = -Infinity;
+      let bottom = -Infinity;
+      for (let at = from; at <= to; at += 4) {
+        left = Math.min(left, uniforms[at]);
+        right = Math.max(right, uniforms[at]);
+        top = Math.min(top, uniforms[at + 1]);
+        bottom = Math.max(bottom, uniforms[at + 1]);
+      }
+      const x = (left + right) / 2;
+      const y = (top + bottom) / 2;
+      let reach = 0;
+      for (let at = from; at <= to; at += 4) {
+        reach = Math.max(
+          reach,
+          Math.hypot(uniforms[at] - x, uniforms[at + 1] - y)
+        );
+      }
+      uniforms.set([x, y, reach], GROUPS_AT + g * 4);
     }
-    // Skia measures the path: points at even distances along it.
-    const { length } = spine;
-    for (let i = 0; i < SAMPLES; i++) {
-      const at = spine.pointAt(
-        Math.min((i / (SAMPLES - 1)) * length, length - 0.01)
-      )!;
-      uniforms.set([at.x, at.y], (4 + STOPS + i) * 4);
-    }
-    spine.dispose();
   };
 
   const render = () => {
-    const elapsed = performance.now() - started;
+    const elapsed = layout.still ? 0 : performance.now() - started;
     const drawn = layout.still ? 1 : reveal(elapsed);
+    writeSpine(elapsed);
     uniforms[1] = drawn * (SAMPLES - 1);
-    uniforms[2] = layout.still ? 0 : elapsed / DRIFT_MS;
+    uniforms[2] = elapsed / DRIFT_MS;
     device.queue.writeBuffer(buffer, 0, uniforms);
     const encoder = device.createCommandEncoder();
     const pass = encoder.beginRenderPass({
@@ -519,18 +698,19 @@ export const mountHero: MountHero = async (canvas, assets, initial) => {
     return drawn < 1;
   };
 
-  // Every frame while the ribbon draws itself; then now and then, for the
-  // slow drift of its colors.
+  // Every frame while the ribbon draws itself, then fewer of them: the sway
+  // and the drift of the colors are slow.
   const loop = () => {
     if (!alive) {
       return;
     }
-    if (render()) {
+    const now = performance.now();
+    if (drawing || now - painted >= SWAY_FRAME_MS) {
+      drawing = render();
+      painted = now;
+    }
+    if (!layout.still) {
       request = requestAnimationFrame(loop);
-    } else if (!layout.still) {
-      timer = window.setTimeout(() => {
-        request = requestAnimationFrame(loop);
-      }, 100);
     }
   };
 
@@ -568,7 +748,8 @@ export const mountHero: MountHero = async (canvas, assets, initial) => {
     drawPage();
     writeScene(width, height);
     cancelAnimationFrame(request);
-    clearTimeout(timer);
+    // Whatever the time since the last frame, this layout gets one now.
+    drawing = true;
     loop();
   };
 
@@ -580,7 +761,6 @@ export const mountHero: MountHero = async (canvas, assets, initial) => {
     destroy: () => {
       alive = false;
       cancelAnimationFrame(request);
-      clearTimeout(timer);
       layers.forEach(({ texture }) => texture.destroy());
       buffer.destroy();
       fill.dispose();
