@@ -130,7 +130,7 @@ emdawnwebgpu/    WebGPU headers and JS library, generated from the pinned Dawn
 metadata.json    Emscripten version, flags and defines a consumer has to match
 ```
 
-`binaries.json` pins one build by URL and SHA-256. `scripts/skia.ts` downloads it once, checks it and unpacks it in the user cache. To link a local build instead:
+`binaries.json` pins one build by URL and SHA-256: an asset of a `skia-wasm-*` [release of React Native Skia](https://github.com/wcandillon/react-native-skia/releases/tag/skia-wasm-m158). `scripts/skia.ts` downloads it once, checks it and unpacks it in the user cache. To link a local build instead:
 
 ```sh
 export SKIA_WASM_ARCHIVES=/path/to/react-native-skia/packages/skia/libs/wasm
