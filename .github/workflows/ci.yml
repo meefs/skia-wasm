@@ -39,7 +39,9 @@ jobs:
 
   test:
     name: Build and test
-    runs-on: ubuntu-latest
+    # The hosted macOS runners have a GPU, through Metal. The Linux ones have
+    # none: WebGPU would run on a software driver.
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
 
@@ -68,14 +70,13 @@ jobs:
       - name: Restore the Skia archives
         uses: actions/cache@v6
         with:
-          path: ~/.cache/skia-wasm
-          key: skia-wasm-${{ hashFiles('binaries.json') }}
+          path: ~/Library/Caches/skia-wasm
+          key: skia-wasm-${{ runner.os }}-${{ hashFiles('binaries.json') }}
 
       - run: yarn install --immutable
 
-      - run: yarn playwright install --with-deps chromium
+      - run: yarn playwright install chromium
 
-      # The runner has no GPU: see the Linux flags in playwright.config.ts.
       - run: yarn test
 
       - uses: actions/upload-artifact@v4

@@ -82,6 +82,7 @@ Left out for now: vertices and atlases, placeholders and font fallback in paragr
 - `src/ts/`: one file per kind of object (`canvas.ts`, `paint.ts`, `path.ts`, `effects.ts`, `text.ts`, `picture.ts`), with `color.ts` for CSS colors and `native.ts` for lifetimes.
 - `src/ts/exports.ts`: the typed list of the C exports, written by `yarn generate-exports` from `src/cpp`, so that a call with the wrong number of arguments does not compile.
 - `tests/`: a page with a tile per feature, checked by reading pixels back with WebGPU.
+- `src/__tests__/`: scenes drawn by the built package in Node, on Dawn ([webgpu](https://www.npmjs.com/package/webgpu)), and compared by jest with the PNGs of `src/__tests__/snapshots`.
 - `bench/`: four scenes drawn by `canvaskit-wasm` and by this library, in Chrome on this machine or on a phone over adb. `bench/results/` holds the runs that [BENCHMARK.md](./BENCHMARK.md) reports.
 - `docs/`: the documentation site: two guides, then examples. Its home page is drawn by the library: Skia draws the page into two textures and a WebGPU pass draws a ribbon between them, over the page and behind the word "skia", the subtitle and the buttons (`docs/hero/hero.ts`). `docs/examples/` holds one module per example, type checked and linted with the rest of the repository. The site itself is a standalone project (`cd docs && yarn install && yarn dev`).
 
@@ -100,7 +101,8 @@ The emsdk inside a React Native Skia checkout works too: `externals/skia/third_p
 
 ```sh
 yarn install
-yarn test             # build the module and run its test in headless Chromium
+yarn test             # build the module and run its tests
+yarn test:pixels      # only the pixel tests, on what was built last
 yarn bench            # build and run the benchmark in a Chrome window
 yarn bench-report bench/results/laptop-spin.json
                       # the tables of a run
@@ -109,7 +111,9 @@ yarn build && yarn build-bench && yarn serve
                       # http://localhost:8790/bench/index.html
 ```
 
-The test needs Playwright's Chromium (`yarn playwright install chromium`); the benchmark uses the installed Google Chrome, or Chrome on an Android phone (`yarn bench --target=android`, see `scripts/run-bench.ts`).
+`UPDATE_SNAPSHOTS=1 yarn test:pixels` writes the PNGs of the pixel tests. One that fails leaves what it drew and the difference in `test-results/pixels`. They need a GPU: a software adapter is refused.
+
+The browser test needs Playwright's Chromium (`yarn playwright install chromium`); the benchmark uses the installed Google Chrome, or Chrome on an Android phone (`yarn bench --target=android`, see `scripts/run-bench.ts`).
 
 ## Releasing
 
