@@ -1359,25 +1359,6 @@ const run = async () => {
       3
     );
 
-    // The display list is played at the same density.
-    const builder = sk.builder();
-    builder.drawRect({ width: 32, height: 32 }, { color: "#00ff00" });
-    const square = builder.build().instantiate();
-    twice.draw(square);
-    expectClose(
-      "a display list is drawn in units",
-      await densePixel(56, 56),
-      [0, 255, 0],
-      3
-    );
-    expectClose(
-      "past the units of a display list",
-      await densePixel(72, 72),
-      [255, 255, 255],
-      3
-    );
-    square.dispose();
-
     // A canvas of the page is given the pixels, and keeps its place.
     const grown = document.createElement("canvas");
     grown.width = 64;

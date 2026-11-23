@@ -2,19 +2,24 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>skia-wasm benchmark</title>
     <link rel="icon" href="data:," />
     <style>
       body {
         font-family: system-ui, sans-serif;
-        margin: 24px;
+        margin: 12px;
         color: #111;
       }
       canvas {
         border: 1px solid #888;
         display: block;
-        width: 512px;
-        height: 512px;
+        /* The same box for both: only one is shown at a time. */
+        width: min(512px, calc(100vw - 26px));
+        aspect-ratio: 1;
+      }
+      #webgl {
+        display: none;
       }
       table {
         border-collapse: collapse;
@@ -43,23 +48,27 @@
       }
       pre {
         font-size: 12px;
+        white-space: pre-wrap;
+      }
+      #results {
+        overflow-x: auto;
       }
     </style>
   </head>
   <body>
-    <h1>Display list benchmark</h1>
+    <h1>canvaskit-wasm and skia-wasm</h1>
     <p class="note">
-      Five binding layers drawing the same frames on the same Skia build. Keep
-      this window visible while it runs. Options, in the URL:
+      The same frames drawn by canvaskit-wasm (WebGL) and by skia-wasm
+      (WebGPU). Keep this page visible while it runs. Options, in the URL:
       <code>scenes=rrects,shaders,paths,images</code>,
-      <code>variants=A,B,C,D,E,F,S</code>, <code>frames=600</code>,
-      <code>warmup=240</code>, <code>canvas=null</code> (draw nothing: the
-      binding layer alone). Allocation and collection figures come from the
-      DevTools protocol and are only there when <code>yarn bench</code> runs
-      the page.
+      <code>variants=K,I</code> (also the order of the run),
+      <code>frames=600</code>, <code>warmup=120</code>,
+      <code>load=spin</code>. Allocation figures come from the DevTools
+      protocol and are only there when <code>yarn bench</code> runs the page.
     </p>
     <div id="status">loading</div>
-    <canvas width="1024" height="1024"></canvas>
+    <canvas id="gpu" width="1024" height="1024"></canvas>
+    <canvas id="webgl" width="1024" height="1024"></canvas>
     <pre id="machine"></pre>
     <div id="results"></div>
     <script type="module" src="../dist/bench/main.js"></script>

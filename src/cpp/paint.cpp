@@ -1,7 +1,7 @@
 /*
- * The immediate API: paints and what a paint refers to. Shaders, filters and
- * path effects are immutable and counted: a factory returns one reference,
- * which sk_unref() gives up. A paint keeps its own.
+ * Paints and what a paint refers to. Shaders, filters and path effects are
+ * immutable and counted: a factory returns one reference, which sk_unref()
+ * gives up. A paint keeps its own.
  */
 #include <cstdint>
 

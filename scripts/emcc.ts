@@ -20,8 +20,6 @@ export interface LinkOptions {
   /** Base name of the .js and .wasm files. */
   name: string;
   sources: string[];
-  /** Emscripten's embind, with the settings CanvasKit builds it with. */
-  embind?: boolean;
   /** Assertions and a lower optimization level, to chase a bad pointer. */
   debug?: boolean;
 }
@@ -51,13 +49,9 @@ export const link = async (options: LinkOptions) => {
     ...(options.debug ? ["-O1", "-g2"] : ["-O3"]),
     `-I${path.join(root, "skia")}`,
     `-I${path.join(PackageRoot, "src", "cpp")}`,
-    `-I${path.join(PackageRoot, "bench", "cpp")}`,
     // The WebGPU headers when compiling and the JS half of WebGPU when linking.
     `--use-port=${path.join(root, "emdawnwebgpu", "emdawnwebgpu.port.py")}`,
     ...metadata.libraries.map((library) => path.join(root, "lib", library)),
-    ...(options.embind
-      ? ["-lembind", "-DEMSCRIPTEN_HAS_UNBOUND_TYPE_NAMES=0"]
-      : []),
     "-sMODULARIZE",
     "-sEXPORT_ES6",
     // Pages and workers: a worker draws to an OffscreenCanvas.

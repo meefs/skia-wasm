@@ -29,7 +29,7 @@ test("the immediate API draws every feature", async ({ page }) => {
   expect(consoleErrors).toEqual([]);
   expect(result.checks.filter((check) => !check.pass)).toEqual([]);
   // Every step ran: a missing one would leave fewer checks.
-  expect(result.checks).toHaveLength(180);
+  expect(result.checks).toHaveLength(178);
   expect(result.pendingGpuWork).toBe(false);
   expect(result.pass).toBe(true);
 });

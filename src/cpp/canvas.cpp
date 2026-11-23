@@ -1,6 +1,6 @@
 /*
- * The immediate API: surfaces, canvases and pictures. One export per
- * operation, the canvas first, then plain numbers.
+ * Surfaces, canvases and pictures. One export per operation, the canvas first,
+ * then plain numbers.
  */
 #include <cstdint>
 

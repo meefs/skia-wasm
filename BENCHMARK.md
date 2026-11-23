@@ -1,222 +1,153 @@
-# Benchmark: a display list against per-call bindings
+# Benchmark: canvaskit-wasm against skia-wasm
 
-Measured on November 23, 2026. The raw figures are in [bench/results.json](./bench/results.json); `yarn bench-report` prints the tables below from it.
+Measured on November 23, 2026, at commit `3e841bf`, when this library still had two APIs: the one it has now, called "immediate" below, and a retained one, a display list. This is the measurement that led to removing the display list, so its column is kept here. The raw figures are in [bench/results/](./bench/results); `yarn bench-report <file>` prints tables from them.
 
-## What it found
+Three ways to draw the same frames:
 
-1. **In a real frame, the binding layer does not matter.** With Graphite drawing, plain C exports, a command buffer and the display list are within the noise of each other in three scenes out of four. In the fourth, the shader scene, the display list is slower in most measurements, typically by 0.1 to 0.2 ms (5 to 15%).
-2. **Plain C exports are as fast as the display list.** The hypothesis was that one JavaScript-to-wasm call per operation is expensive. It is not: about 2 nanoseconds per call here. With nothing drawn, the display list is 6% faster than C exports on 10,000 rounded rects and slower on the other three scenes.
-3. **embind is the outlier, and only where it creates objects.** With one new shader per item per frame, it takes 4 to 6 times longer than the other variants at the binding layer and allocates 417 KB of JavaScript garbage per frame. In a full frame that is 0.3 to 0.6 ms more than the others on that scene.
-4. **The time and the garbage are below the binding layer.** For 10,000 rounded rects, a frame costs about 15 ms of CPU whichever way the calls arrive. Two thirds of it is Graphite snapping, inserting and submitting the recording. The same frame allocates 5.3 MB of JavaScript heap in every variant, none of it from the Skia bindings.
-5. **The typed helper is close to free.** `scene.values` costs 3 to 9% more than raw writes at the binding layer on rects and shaders, 7 microseconds more on 2,000 slot rebinds, and nothing measurable in a full frame.
+- **K, canvaskit-wasm 0.41.1** from npm, the "full" build: Ganesh on WebGL 2, through embind. It is what React Native Skia draws with on the web today.
+- **I, skia-wasm immediate**: `surface.getCanvas()`, one call per operation through the wrappers of `src/ts`, `surface.flush()`. Graphite on WebGPU. This is the library as it is today.
+- **R, skia-wasm retained**: the display list, since removed. A scene was recorded once as a program; every number of it lived in a block of wasm memory; a frame was raw writes into that block, then one call that played the program. Graphite on WebGPU.
 
-## What is compared
+Each is written the way its documentation advises for speed and no further: K keeps its arrays in wasm memory, I reuses its arrays instead of allocating one per call, R writes straight into the block. I and R were the library exactly as `yarn build` made it; nothing was linked for the benchmark.
 
-Five ways of drawing the same frames, linked into one module against the same Skia archives, with the same flags (`-O3`, assertions off).
+## Result
 
-| Variant | Description |
-| --- | --- |
-| A. embind objects | CanvasKit style: `Paint`, `Path`, `Shader`, `RuntimeEffect` and `Image` wrapper classes through embind, one call per operation. Arrays are passed as pointers to wasm memory the page filled, as CanvasKit does. |
-| B. C exports | Plain `extern "C"` functions, one call per operation. Objects are raw pointers: no wrapper objects, no lookups. |
-| C. Command buffer | The frame is encoded, values included, into wasm memory every frame, then decoded by one call. Nothing is kept between frames. |
-| D. Display list, raw writes | The program is built once. Per frame: raw `f32` and `u32` writes into the data block, then one call. |
-| E. Display list, helper | The same, written through `scene.values`. |
+Milliseconds of main thread per frame. Every row compares figures taken under the same CPU clock limit.
 
-Two more, where they apply:
+| | Scene | canvaskit-wasm | skia-wasm immediate | skia-wasm retained | |
+| --- | --- | ---: | ---: | ---: | --- |
+| **Laptop** (M5 Max, Chrome 157) | 10,000 rounded rects | 6.38 | 14.41 | 14.25 | CanvasKit 2.3x faster |
+| | 1,000 shader rects | 2.13 | 1.71 | 1.52 | skia-wasm 1.2x to 1.4x faster |
+| | 200 animated paths | 1.09 | 0.65 | 0.65 | skia-wasm 1.7x faster |
+| | 2,000 images | 1.55 | 3.31 | 3.31 | CanvasKit 2.1x faster |
+| **Phone, first seconds** (Galaxy S25 Edge, Chrome 158, cores at 4.47 GHz) | 10,000 rounded rects | 10.30 | 27.56 | 27.45 | CanvasKit 2.7x faster |
+| | 1,000 shader rects | 3.30 | 2.76 | 2.46 | skia-wasm 1.2x to 1.3x faster |
+| | 200 animated paths | 1.61 | 1.02 | 0.97 | skia-wasm 1.6x faster |
+| | 2,000 images | 1.99 | 5.56 | 5.47 | CanvasKit 2.8x faster |
+| **Phone, sustained** (same phone, hot, cores limited to 1.69 GHz) | 10,000 rounded rects | 21.4 | 51.2 | 50.7 | CanvasKit 2.4x faster |
+| | 1,000 shader rects | 7.6 | 5.7 | 5.2 | skia-wasm 1.3x to 1.5x faster |
+| | 200 animated paths | 3.5 | 2.0 | 2.0 | skia-wasm 1.7x faster |
+| | 2,000 images (at 1.96 GHz) | 4.3 | 9.8 | 10.2 | CanvasKit 2.3x faster |
 
-| Variant | Description |
-| --- | --- |
-| F. One instance per item | The rounded rect scene as one program of a single rect and 10,000 instances, drawn as an array in one call. |
-| S. Nothing written | The display list with no write at all: what its caches save when the content is static. |
+How many pages are behind each figure: three orders of the variants on the laptop, all within 5% of each other; one page per figure for the phone's first seconds (the rect row agrees within 3% with five earlier pages that drew that scene first); two pages for the sustained rows, one for the image row.
 
-A and B are written the way a careful user would: paints are reused, nothing is allocated needlessly, exported functions are held in local variables. This is a reimplementation of the CanvasKit style on this build, not CanvasKit itself.
+Every variant drew the same pixels: I and R identical, K within 0.1 to 3.1 levels out of 255 on a 16x16 grid of means. No WebGPU error on either machine.
 
-## Scenes
+## What it says
 
-Each is animated on every frame, on a 1024 by 1024 canvas.
+**1. Immediate and retained cost the same.** Within 2% on the rects, the paths and the images, on both machines and in both states of the phone. The display list had no speed to offer over calls made one at a time, which an [earlier experiment](#earlier-the-display-list-against-per-call-bindings) had found with a C export baseline and which this confirmed with the real wrappers. It also covered less (no text, no filters, no layers) and was a third of the source. It was removed.
 
-1. **10,000 rounded rects**, each with its own matrix and color: `save`, `concat`, `drawRRect`, `restore` per item.
-2. **1,000 rects with a runtime shader**, each with its own `iTime` and `color` uniforms.
-3. **200 stroked paths of 64 points**, every point moving.
-4. **2,000 images drawn from 4 textures**, each changing texture every frame.
+The one exception is the shader scene, where retained is ahead by 0.2 ms on the laptop and 0.3 to 0.5 ms on the phone (about 10%). The immediate API makes a `Shader` object per rect, 1,000 per frame, each registered for finalization and then disposed, where the display list rebuilds its shaders in C++. It also shows in allocation (below). That is a cost of those wrappers, not of the immediate style: an effect whose uniforms can be written in place would remove it. It is the one thing the display list did better, and it does not need a display list.
 
-Every variant draws the same picture: on a reference frame, the pixels of each variant were compared with those of D over a 16 by 16 grid of averages, and the largest difference was 0. No run reported a WebGPU validation error.
+**2. The immediate bindings are cheaper than CanvasKit's.** Before anything is sent to the GPU, the calls themselves take less time than embind's on every scene:
 
-## Machine
+| Recording, phone at 4.47 GHz | canvaskit-wasm | skia-wasm immediate |
+| --- | ---: | ---: |
+| 10,000 rounded rects | 10.00 ms | 9.74 ms |
+| 1,000 shader rects | 1.62 ms | 1.02 ms |
+| 200 animated paths | 1.32 ms | 0.38 ms |
+| 2,000 images | 1.88 ms | 1.76 ms |
 
-| | |
-| --- | --- |
-| Computer | MacBook Pro (Mac17,7), Apple M5 Max, 18 cores, 64 GB |
-| System | macOS 26.6.2 |
-| Browser | Google Chrome 157.0.8103.79, in a regular window started by Playwright with `--js-flags=--expose-gc` |
-| GPU | Apple M5 Max; WebGPU adapter `apple`, `metal-3`; canvas format `bgra8unorm` |
-| Displays | Built-in at 120 Hz and an external one at 60 Hz. Frames were presented at 120 Hz in the first run and at 60 Hz in the second, except the rounded rects, which take more than 8 ms and always ran at 60 Hz. |
-| Skia | Graphite on Dawn's WebGPU bindings for Emscripten 4.0.7. No SIMD (`SKVX_DISABLE_SIMD`), no threads. |
+**3. The whole deficit is in Graphite's submit.** Sending the recorded frame takes:
 
-## How it is measured
+| Submit, phone at 4.47 GHz | canvaskit-wasm (flush) | skia-wasm (snap, insert, submit) |
+| --- | ---: | ---: |
+| 10,000 rounded rects | 0.28 ms | 17.8 ms |
+| 1,000 shader rects | 1.69 ms | 1.75 ms |
+| 200 animated paths | 0.30 ms | 0.63 ms |
+| 2,000 images | 0.12 ms | 3.8 ms |
 
-- **Frames.** Each variant runs 180 warm-up frames, then 600 measured frames, inside `requestAnimationFrame`. The animation advances by one fixed step per frame, so every variant draws the same sequence.
-- **Two modes.** "Drawing with Graphite" is the real thing. "Drawing nothing" sends the same calls to an `SkNoDrawCanvas`: Skia still tracks the matrix and clip and still creates shaders and paths, but nothing is recorded or submitted. What is left is the cost of getting calls and values into wasm. In that mode a frame takes tens of microseconds, so ten frames run per callback and are averaged.
-- **Two runs** of each mode. A figure is the median of the two runs, followed by half the distance between them. Each run's own figure is the median or the 95th percentile over its 600 frames.
-- **Clock.** `performance.now()` on a cross-origin isolated page: 5 microsecond resolution.
-- **Total** is the frame callback, from its start until the last call into wasm returns.
-- **Inside wasm** is measured in C++ at three points of every frame: after the target is wrapped and cleared, after the drawing calls, and after the recording is snapped, inserted and submitted.
-- **JavaScript and Wasm columns.** For C, D, E, F and S the frame is a few calls, so the split is measured: Wasm is the time inside them, JavaScript the rest. For A and B the two are interleaved thousands of times per frame and cannot be timed call by call without distorting them. Their Wasm figure assumes the drawing calls take what C takes to replay the same calls, and their JavaScript figure is the total minus that. These derived figures are marked †. They are only as good as that assumption, and one of them comes out negative.
-- **Allocation and collections** come from the DevTools protocol, in a separate run of 600 frames so that profiling does not slow the timed one: the sampling heap profiler with collected objects included, and the `MinorGC` and `MajorGC` events of a trace. What the harness itself allocates is subtracted. Collections are per 600 frames.
+The two scenes that skia-wasm loses are the two where Ganesh batches and this build of Graphite does not: one instanced draw against a bind group, a `setBindGroup` and a `drawIndexed` per item (counted on the laptop: 30,667 WebGPU calls per frame against 4 WebGL calls on the rects, 7,918 against 250 on the images). The cause is a setting of Graphite's Dawn backend under Emscripten (`DawnCaps.cpp` turns immediates and storage buffers off), not WebGPU. The phone reports what the fix needs: `maxImmediateSize` 64, 16 storage buffers per stage, `setImmediates` present.
 
-## Results
+**4. The phone makes the gap matter.** On the laptop both hold 60 frames per second on every scene. On the phone the rect scene does not:
 
-### 10,000 rounded rects, each with its own matrix and color
+| 10,000 rounded rects, frames per second | canvaskit-wasm | skia-wasm |
+| --- | ---: | ---: |
+| Phone, first seconds | 60 | 32 |
+| Phone, sustained | 46 | 18 |
 
-Drawing with Graphite, milliseconds per frame:
+**5. Garbage.** JavaScript heap allocated per frame, the same on both machines:
 
-| Variant | Total, median | Total, p95 | JavaScript | Wasm | of which snap, insert, submit | Allocated per frame | GCs, minor / major | rAF interval |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| A. embind objects | 15.50 ±0.41 | 17.87 ±0.74 | 0.34 ±0.22 † | 15.16 ±0.19 † | 9.77 ±0.18 | 5382.9 KB | 90 / 73 | 16.7 ±0.0 |
-| B. C exports | 15.35 ±0.63 | 17.00 ±0.47 | 0.22 ±0.24 † | 15.14 ±0.39 † | 9.74 ±0.39 | 5264.3 KB | 59 / 60 | 16.7 ±0.0 |
-| C. Command buffer | 15.45 ±0.80 | 17.22 ±0.66 | 0.21 ±0.04 | 15.24 ±0.76 | 9.85 ±0.47 | 5264.4 KB | 59 / 60 | 16.7 ±0.0 |
-| D. Display list, raw writes | 14.98 ±0.48 | 17.45 ±1.09 | 0.15 ±0.04 | 14.83 ±0.45 | 9.53 ±0.25 | 5264.2 KB | 94 / 47 | 16.7 ±0.0 |
-| E. Display list, helper | 15.09 ±0.31 | 17.62 ±0.89 | 0.20 ±0.01 | 14.89 ±0.30 | 9.56 ±0.15 | 5264.8 KB | 93 / 47 | 16.7 ±0.0 |
-| F. Display list, one instance per item | 15.89 ±0.08 | 17.77 ±0.09 | 0.22 ±0.01 | 15.67 ±0.07 | 10.01 ±0.00 | 5264.9 KB | 51 / 50 | 16.7 ±0.0 |
+| | canvaskit-wasm | skia-wasm immediate | skia-wasm retained |
+| --- | ---: | ---: | ---: |
+| 10,000 rounded rects | 3.65 MB | 5.42 MB | 5.13 MB |
+| 1,000 shader rects | 1.19 MB | 0.80 MB | 0.51 MB |
+| 200 animated paths | 0.19 MB | 0.11 MB | 0.11 MB |
+| 2,000 images | 0.68 MB | 1.07 MB | 1.07 MB |
 
-Drawing nothing, microseconds per frame:
+Most of skia-wasm's is made below the bindings, by the WebGPU calls of the submit: it is there in the retained variant too, which makes one call per frame. The immediate API adds 0.3 MB per frame on the rects and on the shaders.
 
-| Variant | Total, median | Total, p95 | Before the calls | The calls | Allocated per frame | GCs, minor / major |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| A. embind objects | 1296 ±13 | 1321 ±14 | 2 ±0 | 1294 ±13 | 232.7 KB | 70 / 0 |
-| B. C exports | 1067 ±14 | 1388 ±315 | 2 ±0 | 1065 ±13 | 0.1 KB | 0 / 0 |
-| C. Command buffer | 989 ±6 | 1026 ±11 | 128 ±0 | 861 ±6 | 0.1 KB | 0 / 0 |
-| D. Display list, raw writes | 1002 ±8 | 1040 ±13 | 105 ±0 | 897 ±9 | 0.1 KB | 0 / 0 |
-| E. Display list, helper | 1037 ±5 | 1062 ±7 | 139 ±1 | 898 ±6 | 0.1 KB | 0 / 0 |
-| F. Display list, one instance per item | 1159 ±8 | 1175 ±9 | 118 ±2 | 1041 ±10 | 0.1 KB | 0 / 0 |
+## How it was measured
 
-### 1,000 rects with a runtime shader, each with its own uniforms
+- **Scenes.** The four of BENCHMARK.md, 1024x1024, every item animated on every frame, the same arithmetic in each variant.
+- **A frame.** One per `requestAnimationFrame`, timed with `performance.now()` on a cross-origin isolated page (5 µs steps on both machines). "Submit" is `flush()` for K and I, and for R the part of `draw()` after the play of the display list, which the module times itself. "Record" is the rest.
+- **Runs.** 300 measured frames per variant after a warm-up, the page loaded once per order of the variants (KIR, RIK, IRK). A figure is the median over the pages of the median of each.
+- **Load.** The tables above are from the "spin" load: after its frame, the page keeps the core busy until nine tenths of the frame interval, so that the CPU governor has no slack to lower the clock on. Without it, on the phone, CanvasKit took about 10 ms on all four scenes: the governor slows a light frame down until it fills the interval. The "paced" load (no spin) was run too, for the frame rates and for the allocation, which a sampling heap profiler measures over the DevTools protocol in a separate run of as many frames.
+- **Canvases.** Only the canvas being drawn to is on the page, in the same box for both.
 
-Drawing with Graphite, milliseconds per frame:
+### The phone
 
-| Variant | Total, median | Total, p95 | JavaScript | Wasm | of which snap, insert, submit | Allocated per frame | GCs, minor / major | rAF interval |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| A. embind objects | 2.18 ±0.07 | 2.58 ±0.26 | 0.44 ±0.02 † | 1.74 ±0.05 † | 1.23 ±0.03 | 988.4 KB | 14 / 21 | 12.5 ±4.2 |
-| B. C exports | 1.61 ±0.05 | 1.69 ±0.05 | 0.04 ±0.01 † | 1.57 ±0.03 † | 1.05 ±0.02 | 530.3 KB | 0 / 22 | 12.5 ±4.2 |
-| C. Command buffer | 1.58 ±0.04 | 1.68 ±0.04 | 0.03 ±0.00 | 1.56 ±0.04 | 1.04 ±0.02 | 530.6 KB | 0 / 21 | 12.5 ±4.2 |
-| D. Display list, raw writes | 1.92 ±0.22 | 2.41 ±0.44 | 0.02 ±0.01 | 1.90 ±0.22 | 1.24 ±0.14 | 530.4 KB | 0 / 19 | 12.5 ±4.2 |
-| E. Display list, helper | 1.76 ±0.01 | 2.26 ±0.27 | 0.03 ±0.01 | 1.72 ±0.02 | 1.14 ±0.02 | 530.7 KB | 0 / 19 | 12.5 ±4.2 |
-| S. Display list, nothing written | 1.78 ±0.07 | 2.13 ±0.22 | 0.02 ±0.01 | 1.76 ±0.06 | 1.19 ±0.04 | 530.4 KB | 0 / 18 | 12.5 ±4.2 |
+A Galaxy S25 Edge (SM-S937B, Snapdragon 8 Elite, Adreno 830, Android 17), plugged into the laptop. Chrome 158 on the phone loads the page from the laptop through `adb reverse`, and is driven over the DevTools protocol through `adb forward`, in a tab the runner opens and closes itself. Chrome ran `requestAnimationFrame` at 60 Hz.
 
-Drawing nothing, microseconds per frame:
+The phone limits the top speed of its cores under load, and quickly. Drawing the rect scene with skia-wasm five times in a row, from a phone at 37 °C:
 
-| Variant | Total, median | Total, p95 | Before the calls | The calls | Allocated per frame | GCs, minor / major |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| A. embind objects | 311 ±42 | 433 ±10 | 2 ±1 | 308 ±42 | 416.5 KB | 125 / 0 |
-| B. C exports | 55 ±3 | 119 ±9 | 3 ±0 | 53 ±3 | 0.1 KB | 0 / 0 |
-| C. Command buffer | 48 ±10 | 86 ±15 | 6 ±1 | 42 ±9 | 0.1 KB | 0 / 0 |
-| D. Display list, raw writes | 64 ±1 | 127 ±2 | 4 ±0 | 60 ±1 | 0.1 KB | 0 / 0 |
-| E. Display list, helper | 70 ±5 | 156 ±18 | 8 ±0 | 62 ±4 | 0.1 KB | 0 / 0 |
-| S. Display list, nothing written | 41 ±5 | 67 ±28 | 3 ±0 | 38 ±6 | 0.1 KB | 0 / 0 |
+| Seconds of load | Fastest cores limited to | Frame |
+| ---: | ---: | ---: |
+| 0 to 12 | 4.47 GHz (no limit) | 28 ms |
+| 15 | 4.09 GHz | |
+| 26 | 2.65 GHz | 33 ms |
+| 33 and after | 1.96 GHz | 44 ms |
 
-### 200 stroked paths of 64 points, every point moving
+Later, with the skin of the phone above 39 °C, the limit went down to 1.69 GHz. Android's thermal status still said 0 for most of this. Within one page load, the variant that ran first was therefore measured on a faster phone than the ones that followed, by a factor of 1.6 to 1.8, which a first session of six pages showed before the cause was known (`bench/results/phone-unsorted-spin.json` and `phone-unsorted-paced.json`: kept, but only their frame rates and allocations are used here).
 
-Drawing with Graphite, milliseconds per frame:
+So the runner records the limit (`scaling_max_freq` of each group of cores, four times a second) while each variant is measured, and the phone was measured in two states:
 
-| Variant | Total, median | Total, p95 | JavaScript | Wasm | of which snap, insert, submit | Allocated per frame | GCs, minor / major | rAF interval |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| A. embind objects | 0.86 ±0.16 | 1.38 ±0.29 | 0.18 ±0.05 † | 0.69 ±0.11 † | 0.48 ±0.09 | 116.2 KB | 0 / 6 | 12.5 ±4.2 |
-| B. C exports | 0.91 ±0.08 | 1.44 ±0.22 | 0.17 ±0.04 † | 0.74 ±0.05 † | 0.52 ±0.05 | 116.9 KB | 0 / 6 | 12.5 ±4.2 |
-| C. Command buffer | 0.87 ±0.05 | 1.28 ±0.30 | 0.17 ±0.01 | 0.71 ±0.04 | 0.50 ±0.03 | 117.4 KB | 0 / 6 | 12.5 ±4.2 |
-| D. Display list, raw writes | 0.84 ±0.07 | 1.57 ±0.15 | 0.15 ±0.01 | 0.69 ±0.06 | 0.45 ±0.04 | 116.4 KB | 0 / 6 | 12.5 ±4.2 |
-| E. Display list, helper | 0.95 ±0.01 | 1.75 ±0.14 | 0.17 ±0.00 | 0.78 ±0.01 | 0.52 ±0.00 | 116.8 KB | 0 / 6 | 12.5 ±4.2 |
-| S. Display list, nothing written | 0.79 ±0.07 | 1.69 ±0.28 | 0.03 ±0.00 | 0.76 ±0.07 | 0.51 ±0.05 | 116.5 KB | 0 / 6 | 12.5 ±4.2 |
+- **First seconds** (`--isolate`): one page per scene and variant, each started once the phone had cooled down and had no limit on its cores. The limit stayed at 4.47 GHz through every measurement but one (the paths with the immediate API, at 3.51 GHz).
+- **Sustained** (`--preheat=45 --cool=none`): 45 seconds of the rect scene first, then every variant on a phone that stays hot. Rows are only taken from pages where the three variants had the same limit.
 
-Drawing nothing, microseconds per frame:
+## Caveats
 
-| Variant | Total, median | Total, p95 | Before the calls | The calls | Allocated per frame | GCs, minor / major |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| A. embind objects | 165 ±18 | 291 ±91 | 3 ±1 | 163 ±16 | 0.1 KB | 0 / 0 |
-| B. C exports | 149 ±3 | 338 ±27 | 2 ±0 | 146 ±4 | 0.1 KB | 0 / 0 |
-| C. Command buffer | 159 ±4 | 307 ±27 | 138 ±4 | 21 ±0 | 0.1 KB | 0 / 0 |
-| D. Display list, raw writes | 209 ±18 | 322 ±11 | 152 ±13 | 56 ±5 | 0.1 KB | 0 / 0 |
-| E. Display list, helper | 162 ±1 | 311 ±22 | 119 ±0 | 44 ±0 | 0.1 KB | 0 / 0 |
-| S. Display list, nothing written | 23 ±2 | 59 ±14 | 3 ±0 | 21 ±1 | 0.1 KB | 0 / 0 |
+- **CPU time of the main thread only**, plus the frame rate. What the GPU process does with 4 calls or 30,000 is not timed, though on the phone the frame rate follows the main thread closely.
+- **Not a controlled test of Ganesh against Graphite**: canvaskit-wasm 0.41.1 is another Skia revision, built with other flags.
+- **One phone, one laptop, Chrome only.** The laptop was not idle (other work was running); its three orders still agree within 5%.
+- **The phone's first-seconds figures are one page each**, and its image row under sustained load is one page.
+- **Four synthetic scenes**, chosen to stress the bindings, with thousands of small items. A scene of a few large draws would show none of this.
 
-### 2,000 images from 4 textures, rebound every frame
+## Reproduce
 
-Drawing with Graphite, milliseconds per frame:
-
-| Variant | Total, median | Total, p95 | JavaScript | Wasm | of which snap, insert, submit | Allocated per frame | GCs, minor / major | rAF interval |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
-| A. embind objects | 3.99 ±0.26 | 4.55 ±0.24 | -0.20 ±0.08 † | 4.19 ±0.18 † | 2.53 ±0.17 | 1087.5 KB | 0 / 36 | 12.5 ±4.2 |
-| B. C exports | 4.72 ±0.94 | 5.02 ±0.76 | 0.06 ±0.34 † | 4.66 ±0.60 † | 3.01 ±0.59 | 1055.1 KB | 1 / 34 | 12.5 ±4.2 |
-| C. Command buffer | 4.69 ±1.00 | 5.02 ±0.75 | 0.04 ±0.00 | 4.65 ±0.99 | 3.00 ±0.64 | 1055.3 KB | 0 / 35 | 12.5 ±4.2 |
-| D. Display list, raw writes | 4.65 ±1.06 | 5.00 ±0.83 | 0.04 ±0.00 | 4.60 ±1.06 | 2.96 ±0.67 | 1057.8 KB | 0 / 34 | 12.5 ±4.2 |
-| E. Display list, helper | 4.69 ±1.06 | 5.06 ±0.78 | 0.05 ±0.00 | 4.64 ±1.06 | 2.98 ±0.66 | 1057.0 KB | 1 / 33 | 12.5 ±4.2 |
-
-Drawing nothing, microseconds per frame:
-
-| Variant | Total, median | Total, p95 | Before the calls | The calls | Allocated per frame | GCs, minor / major |
-| --- | ---: | ---: | ---: | ---: | ---: | ---: |
-| A. embind objects | 35 ±7 | 91 ±21 | 3 ±0 | 32 ±7 | 31.4 KB | 20 / 0 |
-| B. C exports | 15 ±1 | 43 ±9 | 3 ±0 | 13 ±0 | 0.1 KB | 0 / 0 |
-| C. Command buffer | 15 ±0 | 42 ±8 | 7 ±0 | 8 ±0 | 0.1 KB | 0 / 0 |
-| D. Display list, raw writes | 22 ±2 | 68 ±1 | 4 ±1 | 18 ±1 | 0.1 KB | 0 / 0 |
-| E. Display list, helper | 29 ±4 | 89 ±1 | 10 ±1 | 19 ±3 | 0.1 KB | 0 / 0 |
-
-## Reading the results
-
-### How much faster than per-call bindings?
-
-**With Graphite drawing: not measurably.**
-
-- **Rounded rects.** 15.0 to 15.9 ms for every variant, with runs 0.3 to 0.8 ms apart. The display list has the lowest median, by less than the distance between two runs of the same variant.
-- **Paths.** 0.79 to 0.95 ms for every variant.
-- **Images.** 4.0 to 4.7 ms, but the two runs are 2 ms apart (about 5.7 ms when presenting at 120 Hz, 3.7 ms at 60 Hz). No difference between variants survives that.
-- **Shaders.** embind is the slowest at 2.18 ms. C exports and the command buffer are the fastest at 1.6 ms. The display list is in between, at 1.76 to 1.92 ms. To rule out a drift during the run, the scene was measured twice more with the variants in another order: with the display list first, it took 1.73 to 1.77 ms against 1.53 to 1.59 ms for B and C; with it last, D and E took 1.70 and 1.59 ms against 1.61 to 1.63 ms. Over the four measurements D is 5 to 29% slower than B, and E from 1% faster to 16% slower: typically 0.1 to 0.2 ms, and not a drift. The extra time is inside Graphite's recording and snap, not in decoding: with nothing drawn the same variants differ by 15 microseconds. The cause is not established.
-
-**With nothing drawn**, the binding layers separate:
-
-| Scene | embind (A) | C exports (B) | Command buffer (C) | Display list (D) | D against A | D against B |
-| --- | ---: | ---: | ---: | ---: | --- | --- |
-| Rounded rects | 1296 µs | 1067 µs | 989 µs | 1002 µs | 1.3 times faster | 6% faster |
-| Shaders | 311 µs | 55 µs | 48 µs | 64 µs | 4.9 times faster | 16% slower |
-| Paths | 165 µs | 149 µs | 159 µs | 209 µs | 27% slower | 40% slower |
-| Images | 35 µs | 15 µs | 15 µs | 22 µs | 1.6 times faster | 47% slower |
-
-- **A call into wasm is cheap.** In the rounded rect scene, B makes 50,000 calls per frame and is 78 microseconds slower than the command buffer, which makes one. Most of the millisecond is Skia tracking 30,000 matrix and save operations, which every variant pays.
-- **The display list is not the cheapest layer.** A command buffer does the least work per item. The display list adds an indirection through offsets, a comparison for every cached object and, for a slot, a lookup and a retain when it was rebound.
-- **These amounts are small.** The largest gap between B and D is 60 microseconds per frame, in a scene whose full frame takes 0.9 ms.
-
-### Does the design hold for real content?
-
-Functionally, yes. Transforms, runtime shaders with animated uniforms, animated paths and images rebound every frame all draw correctly, pixel for pixel like the per-call variants, with no validation error.
-
-- **Shaders with uniforms that change every frame.** The cache is pure overhead then: a comparison that fails, then the same `makeShader` every other variant pays. 64 microseconds per 1,000 shaders against 48 for the command buffer. When nothing changes it saves the creation: 41 microseconds.
-- **Animated paths.** A path buffer costs more than building the path from inline points: 56 microseconds per 200 paths in the player against 21 for the command buffer. The buffer is compared, copied as the cache key, its verbs are narrowed from words to bytes, and the path is rebuilt. When nothing changes, the whole frame is 23 microseconds against 209.
-- **Raw writes into wasm memory are not free.** In the path scene, writing 25,600 floats one by one into the data block (D) is slower than computing them into a JavaScript array and copying once (E): 152 against 119 microseconds before the calls.
-- **Slots.** Rebinding 2,000 slots every frame costs 18 microseconds in the player against 13 for 2,000 calls that pass a pointer: each rebound slot is a lookup in the store and a retain.
-- **One instance per item.** 10,000 instances of a one-rect program cost 16% more than one program of 10,000 rects with nothing drawn (1159 against 1002 microseconds), and 6% more in a full frame, which is within the noise.
-
-### Where the time and the garbage are
-
-- **Graphite.** A rounded rect with its own matrix costs about 1.5 microseconds of CPU: 0.5 to record it and 1.0 in snap, insert and submit. That is 15 ms for 10,000, in a build without SIMD or threads.
-- **JavaScript garbage below the bindings.** With Graphite drawing, every variant allocates the same amount per frame: 5.3 MB for 10,000 rounded rects, 0.5 MB for 1,000 shader rects, 0.1 MB for 200 paths, 1.1 MB for 2,000 images. With nothing drawn, every variant but embind allocates nothing. So this garbage is made on the way from Graphite to WebGPU, in the JavaScript glue of the WebGPU bindings or in the browser's own WebGPU objects; which of the two was not profiled.
-- **Collections follow.** The rounded rect scene has 50 to 94 scavenges and 47 to 73 major collection events per 600 frames in every variant.
-- **What embind adds** is visible only against that background: 233 KB per frame for the rounded rects, 417 KB for the shaders, 31 KB for the images, nothing for the paths.
-
-## Limits
-
-- One machine, one browser, two runs. In a full frame, differences under about 5% cannot be told from noise.
-- The display rate differed between the two runs, and the image scene shows that it changes the time spent submitting.
-- The JavaScript and Wasm columns of A and B are derived, not measured.
-- "Drawing nothing" still includes Skia's canvas state and the creation of shaders and paths. It is the binding layer plus the smallest amount of Skia that every variant needs.
-- The scenes are synthetic: many small items of one kind each.
-- The display list is a prototype. Nothing in its player was tuned.
-
-## Running it
+The benchmark in `bench/` now draws with canvaskit-wasm and with the library as it is: columns K and I. The retained column cannot be measured again from this code.
 
 ```sh
-yarn bench                          # one run of both modes, in a Chrome window
-yarn bench --runs=2                 # what the figures above come from
-yarn bench --modes=graphite --scenes=shaders --variants=S,D,E,C,B
-yarn bench-report                   # these tables, from bench/results.json
+# The laptop: a Chrome window that has to stay visible.
+yarn bench --load=spin --profile=0 --frames=300
+yarn bench --load=paced --frames=300
+
+# A phone over adb: screen on, unlocked, USB debugging on.
+yarn bench --target=android --serial=<serial> \
+  --isolate --orders=KI --load=spin --profile=0 --frames=200 --warmup=60 --cool-to=38
+yarn bench --target=android --serial=<serial> \
+  --preheat=45 --cool=none --load=spin --profile=0 --frames=300 --warmup=60
+
+yarn bench-report bench/results/desktop.json
 ```
 
-The window has to stay visible: a hidden page gets no animation frames. The page can also be opened by hand at `http://localhost:8790/bench/index.html` after `yarn build-bench && yarn serve`; the allocation columns are then empty, since they need the DevTools protocol.
+The runs reported here:
+
+| File in `bench/results/` | |
+| --- | --- |
+| `laptop-spin.json` | The laptop rows of the result table |
+| `laptop-paced.json` | The laptop's allocation |
+| `phone-first-seconds.json` | The phone on a cool start, one variant per page |
+| `phone-sustained.json` | The phone kept hot |
+| `phone-unsorted-spin.json`, `phone-unsorted-paced.json` | The first session on the phone, with variants measured under different clock limits: frame rates and allocation only |
+
+## Earlier: the display list against per-call bindings
+
+The display list was a prototype to decide what shape the bindings should take. The hypothesis was that one call from JavaScript into wasm per drawing operation is expensive, so that a scene described as data and played by one call would be faster. It was measured the same day, on the laptop, against three baselines linked into the same module: embind objects, plain C exports, and a command buffer encoded again every frame. The full write-up and its code are in the history of this repository (`git show 3e841bf:BENCHMARK.md`, `bench/` and `src/` at that commit). What it found:
+
+- **A call is cheap.** About 2 nanoseconds through a plain C export, about 7 through embind.
+- **In a real frame the binding layer does not matter.** On 10,000 rounded rects: 15.5 ms with embind, 15.4 with C exports, 15.5 with the command buffer, 15.0 with the display list. With nothing drawn, to isolate the bindings: 1.30, 1.07, 0.99 and 1.00 ms.
+- **embind only hurts where it creates objects**: 4 to 6 times slower than the others at the binding layer on the shader scene, and 0.4 MB of garbage per frame.
+- **The time and the garbage are below the bindings**: about 1.5 microseconds of CPU per rounded rect in Graphite, two thirds of it in snap, insert and submit, and 5.3 MB of JavaScript heap per frame whichever way the calls arrive.
+
+So the bindings became plain C exports with thin wrappers, and the display list was left with structure as its only argument: a frame as plain data that anything could write, derived objects cached while their numbers do not change, many instances of one program. None of those had a user. If one appears, the display list can come back as a layer over the same canvas, without changing the API.

@@ -1,5 +1,4 @@
 /// <reference types="@webgpu/types" />
-import { Builder } from "./builder";
 import { Canvas } from "./canvas";
 import type { ColorInput } from "./color";
 import {
@@ -26,10 +25,8 @@ import { Paint } from "./paint";
 import type { PaintOptions } from "./paint";
 import { Path, pathFromSVG } from "./path";
 import { PictureRecorder } from "./picture";
-import type { Instance } from "./program";
 import { Effect, Image } from "./resources";
-import type { UniformInfo, UniformKinds } from "./resources";
-import type { SlotKind } from "./slots";
+import type { UniformInfo, UniformKind, UniformKinds } from "./resources";
 import { Font, makeParagraph, Typeface } from "./text";
 import type { ParagraphStyle, TextSpan } from "./text";
 
@@ -52,7 +49,7 @@ export interface InitOptions {
   module?: string | ModuleFactory;
 }
 
-const kindOfUniform = (type: string, count: number): SlotKind => {
+const kindOfUniform = (type: string, count: number): UniformKind => {
   if (count > 1) {
     return "floats";
   }
@@ -68,17 +65,15 @@ const kindOfUniform = (type: string, count: number): SlotKind => {
     case "int":
       return "i32";
     default:
-      // Matrices are column-major in SkSL: not the "mat3" of concat().
+      // Matrices, which are column-major in SkSL, and the other vectors.
       return "floats";
   }
 };
 
 /**
  * Where drawing ends up: a canvas of the page, whose current texture changes
- * every frame, or one texture.
- *
- * Immediate mode: `getCanvas()`, draw, `flush()`. Retained mode:
- * `draw(scene)`.
+ * every frame, or one texture. A frame is `getCanvas()`, the drawing calls,
+ * then `flush()`.
  *
  * A surface has a size, in the units of the drawing, and a density: how many
  * pixels each unit takes. Drawing is in units; the density is applied under
@@ -89,9 +84,6 @@ export class Surface {
   private green = 0;
   private blue = 0;
   private alpha = 0;
-  // Pointers of the instances of draw(scenes), in wasm memory.
-  private scratch = 0;
-  private capacity = 0;
   // The frame that getCanvas() began, until flush().
   private frame = 0;
   private readonly canvas: Canvas;
@@ -127,12 +119,8 @@ export class Surface {
     this.alpha = a;
   }
 
-  /**
-   * Hands this frame's texture over to wasm. Used by getCanvas() and draw();
-   * public for code that draws by other means, such as the benchmark
-   * baselines.
-   */
-  acquire() {
+  /** Hands this frame's texture over to wasm. */
+  private acquire() {
     const { target } = this;
     return this.module.WebGPU.importJsTexture(
       "getCurrentTexture" in target ? target.getCurrentTexture() : target
@@ -176,67 +164,6 @@ export class Surface {
     this.frame = 0;
     this.canvas.attach(0);
     if (module._sk_frame_end(frame) === 0) {
-      throw new Error(lastError(module));
-    }
-  }
-
-  /**
-   * Clears the surface, plays the instances in order and submits: one call
-   * into wasm, whatever the number of instances.
-   */
-  draw(scene: Instance | readonly Instance[]) {
-    const { module } = this;
-    if (this.frame !== 0) {
-      throw new Error("A frame is being drawn: flush() it first.");
-    }
-    let drawn: number;
-    if (Array.isArray(scene)) {
-      const scenes: readonly Instance[] = scene;
-      const count = scenes.length;
-      if (count > this.capacity) {
-        module._free(this.scratch);
-        this.capacity = Math.max(count, this.capacity * 2, 16);
-        this.scratch = module._malloc(this.capacity * 4);
-      }
-      const heap = module.HEAPU32;
-      const base = this.scratch >> 2;
-      for (let i = 0; i < count; i++) {
-        const { pointer } = scenes[i];
-        if (pointer === 0) {
-          throw new Error("An instance was disposed.");
-        }
-        heap[base + i] = pointer;
-      }
-      // Acquired last: nothing is handed over if an instance is refused, and
-      // the allocation it makes can replace the views used above.
-      drawn = module._sk_draw(
-        this.acquire(),
-        this.red,
-        this.green,
-        this.blue,
-        this.alpha,
-        this.densityX,
-        this.densityY,
-        this.scratch,
-        count
-      );
-    } else {
-      const { pointer } = scene as Instance;
-      if (pointer === 0) {
-        throw new Error("The instance was disposed.");
-      }
-      drawn = module._sk_draw_one(
-        this.acquire(),
-        this.red,
-        this.green,
-        this.blue,
-        this.alpha,
-        this.densityX,
-        this.densityY,
-        pointer
-      );
-    }
-    if (drawn === 0) {
       throw new Error(lastError(module));
     }
   }
@@ -455,7 +382,7 @@ export class Skia {
     return new PictureRecorder(this.runtime);
   }
 
-  // ---- Immediate mode: what is drawn with.
+  // ---- What is drawn with.
 
   paint(options?: PaintOptions) {
     return new Paint(this.module, options);
@@ -550,7 +477,7 @@ export class Skia {
     return makeParagraph(this.runtime, spans, style);
   }
 
-  // ---- Resources, shared by both modes.
+  // ---- Resources: referred to by number, freed by dispose() only.
 
   /**
    * Compiles a runtime shader, or returns the one already compiled from the
@@ -626,13 +553,6 @@ export class Skia {
       throw new Error(lastError(module));
     }
     return new Image(this.runtime, handle);
-  }
-
-  // ---- Retained mode.
-
-  /** Starts recording a program. */
-  builder() {
-    return new Builder(this.module);
   }
 
   /**

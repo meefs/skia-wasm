@@ -1,6 +1,5 @@
 /*
- * The immediate API: paths. JavaScript sees one object that it edits and
- * draws: see PathObject.
+ * Paths. JavaScript sees one object that it edits and draws: see PathObject.
  */
 #include <cstdint>
 #include <optional>

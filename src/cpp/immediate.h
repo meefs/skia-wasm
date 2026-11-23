@@ -1,8 +1,8 @@
 /*
- * Shared by the exports of the immediate API: canvas.cpp, paint.cpp,
- * path.cpp, text.cpp and image.cpp. They take numbers and pointers. An object
- * is a raw pointer that its JavaScript wrapper owns; an image or an effect is
- * a handle of the store, as in the display list.
+ * Shared by the exports of the API: canvas.cpp, paint.cpp, path.cpp, text.cpp
+ * and image.cpp. They take numbers and pointers. An object is a raw pointer
+ * that its JavaScript wrapper owns; an image or an effect is a handle of the
+ * store (resources.h).
  */
 #pragma once
 

@@ -14,41 +14,7 @@ export interface Exports {
   _sk_image_decode(bytes: number, length: number): number;
   _sk_image_from_texture(cTexture: number, opaque: number): number;
   _sk_resource_release(handle: number): void;
-  _sk_program_create(
-    words: number,
-    count: number,
-    imports: number,
-    importCount: number
-  ): number;
-  _sk_program_release(program: number): void;
-  _sk_instance_create(program: number): number;
-  _sk_instance_data(instance: number): number;
-  _sk_instance_release(instance: number): void;
-  _sk_draw(
-    texture: number,
-    r: number,
-    g: number,
-    b: number,
-    a: number,
-    scaleX: number,
-    scaleY: number,
-    instances: number,
-    count: number
-  ): number;
-  _sk_draw_one(
-    texture: number,
-    r: number,
-    g: number,
-    b: number,
-    a: number,
-    scaleX: number,
-    scaleY: number,
-    instance: number
-  ): number;
   _sk_tick(): number;
-  _sk_stats_enable(enabled: number): void;
-  _sk_stats_null_canvas(enabled: number): void;
-  _sk_stats(): number;
   // canvas.cpp
   _sk_frame_begin(
     cTexture: number,
@@ -583,7 +549,6 @@ export interface Exports {
   _sk_path_trim(path: number, start: number, stop: number): number;
   _sk_path_length(path: number): number;
   _sk_path_point_at(path: number, distance: number): number;
-  // program.cpp
   // text.cpp
   _sk_typeface_from_data(bytes: number, length: number): number;
   _sk_typeface_family(typeface: number): number;

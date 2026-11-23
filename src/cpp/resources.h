@@ -1,7 +1,8 @@
 /*
- * Context resources: the immutable Skia objects that programs and instances
- * share. JavaScript holds them through handles; programs and instances hold
- * references of their own, so releasing a handle never invalidates a scene.
+ * Context resources: immutable Skia objects that JavaScript refers to by
+ * number. It holds them through handles; what is made from a resource, a
+ * shader for instance, holds a reference of its own, so releasing a handle
+ * never invalidates it.
  */
 #pragma once
 

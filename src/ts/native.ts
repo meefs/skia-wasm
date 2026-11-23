@@ -1,6 +1,6 @@
 /**
- * What the wrappers of the immediate API share: the lifetime of an object
- * that lives in wasm memory, and scratch memory to pass arrays and text.
+ * What the wrappers share: the lifetime of an object that lives in wasm memory,
+ * and scratch memory to pass arrays and text.
  */
 import type { WasmModule } from "./module";
 

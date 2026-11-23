@@ -1,48 +1,55 @@
 /// <reference types="@webgpu/types" />
 /**
- * Runs the benchmark: every scene, every variant, measured inside
- * requestAnimationFrame. Results are shown on the page and left in
- * window.benchResults for scripts/run-bench.ts.
+ * Runs the benchmark: every scene drawn by canvaskit-wasm and by skia-wasm,
+ * measured inside requestAnimationFrame. Results are shown on the page and
+ * left in window.benchResults for scripts/run-bench.ts.
  */
 import { Skia } from "../src/ts";
 
-import type { BenchModule } from "./module";
-import { HEIGHT, WIDTH, scenes } from "./scenes";
+import { loadCanvasKit } from "./canvaskit";
+import { HEIGHT, WIDTH, scenes, variantNames } from "./scenes";
 import type { Env, Variant } from "./scenes";
 
 const params = new URLSearchParams(location.search);
 const FRAMES = Number(params.get("frames") ?? 600);
-const WARMUP = Number(params.get("warmup") ?? 240);
-// "null" sends every frame to a canvas that draws nothing: what is left is
-// the cost of getting the calls and their values into wasm.
-const NULL_CANVAS = params.get("canvas") === "null";
-// Without drawing, a frame takes a few dozen microseconds, close to the
-// resolution of the clock: several are run per callback and averaged.
-const REPEAT = Number(params.get("repeat") ?? (NULL_CANVAS ? 10 : 1));
+const WARMUP = Number(params.get("warmup") ?? 120);
 const onlyScenes = params.get("scenes")?.split(",");
-const onlyVariants = params.get("variants")?.split(",");
+// The order of the URL is the order of the run.
+const order = params.get("variants")?.split(",") ?? ["K", "I"];
+// "paced": one frame per animation frame, and the core is idle until the
+// next one. That is what a page does, and it says which frame rate holds, but
+// it is a poor measure of cost on a phone: the CPU governor lowers the clock
+// when a frame leaves slack, so a light frame takes as long as a heavy one.
+// "spin": the same, then the core is kept busy until the next frame is due,
+// so that every variant is measured at the full clock speed.
+const LOAD = params.get("load") === "spin" ? "spin" : "paced";
+const PROFILE = params.get("profile") !== "0";
+// Seconds of the heaviest scene before anything is measured. A phone lowers
+// the top speed of its processor after some twenty seconds of load, by more
+// than half on the one this was written with: either every figure is taken
+// before that happens (one variant per page, on a cool phone), or the phone
+// is brought there first and every figure is taken after.
+const PREHEAT = Number(params.get("preheat") ?? 0);
 // One animation step per frame, whatever the refresh rate: every variant
 // draws the same sequence of frames.
 const STEP = 1000 / 60;
 // The frame every variant draws again at the end, to compare their pixels.
 const REFERENCE_FRAME = 1000;
 
-const collect = (globalThis as unknown as { gc?: () => void }).gc;
-
-/** What the page allocated and collected between "start" and "stop". */
+/** What the page allocated between "start" and "stop". */
 interface Profile {
   bytes: number;
-  minorCollections: number;
-  majorCollections: number;
 }
-// Provided by scripts/run-bench.ts, which drives the sampling heap profiler
-// and a trace of the collector over the DevTools protocol. The page cannot
-// measure this itself: performance.memory does not move within a task.
-const profile = (
-  window as unknown as {
-    benchProfile?: (action: "start" | "stop") => Promise<Profile | null>;
-  }
-).benchProfile;
+// Provided by scripts/run-bench.ts over the DevTools protocol: the page
+// cannot measure its own allocation, nor ask for a collection.
+const hooks = window as unknown as {
+  benchProfile?: (action: "start" | "stop") => Promise<Profile | null>;
+  benchCollect?: () => Promise<void>;
+};
+const collect = async () => {
+  (globalThis as unknown as { gc?: () => void }).gc?.();
+  await hooks.benchCollect?.();
+};
 
 interface Distribution {
   median: number;
@@ -51,27 +58,22 @@ interface Distribution {
 
 export interface VariantResult {
   id: string;
+  name: string;
   frames: number;
-  /** The frame callback, start to last return from wasm, in milliseconds. */
+  /** The frame callback, start to end, in milliseconds of the main thread. */
   total: Distribution;
-  /** Inside wasm before the drawing calls: wrapping and clearing. */
-  begin: Distribution;
-  /**
-   * Between the two: the play of a display list or of a command buffer; for
-   * the per-call variants, the calls and the JavaScript between them.
-   */
-  play: Distribution;
-  /** Inside wasm after them: snap, insert, submit. */
-  end: Distribution;
-  /** total - begin - play - end: JavaScript outside of the frame's calls. */
-  outside: Distribution;
+  /** Until the frame is sent: the drawing calls. */
+  record: Distribution;
+  /** Sending it: flush(). For skia-wasm, snap, insert and submit. */
+  submit: Distribution;
   /** Between two requestAnimationFrame callbacks. */
   raf: Distribution;
+  /** Frames per second over the measured run: what the screen showed. */
+  fps: number;
+  /** When the measured frames were drawn: milliseconds since the epoch. */
+  window: [number, number];
   /** Bytes of JavaScript heap allocated per frame; null without a profiler. */
   allocation: number | null;
-  /** Scavenges and full collections over a run of as many frames. */
-  minorCollections: number | null;
-  majorCollections: number | null;
   /** Mean color of a 16x16 grid over the reference frame. */
   signature: number[];
 }
@@ -107,6 +109,16 @@ const frames = (count: number, each: (index: number, now: number) => void) =>
     requestAnimationFrame(tick);
   });
 
+/** The median time between two animation frames, in milliseconds. */
+const displayInterval = async () => {
+  const stamps: number[] = [];
+  await frames(61, (_index, now) => {
+    stamps.push(now);
+  });
+  const intervals = stamps.slice(1).map((stamp, i) => stamp - stamps[i]);
+  return intervals.sort((a, b) => a - b)[30];
+};
+
 /** The smallest step of performance.now(), in milliseconds. */
 const timerResolution = () => {
   let smallest = Infinity;
@@ -137,20 +149,19 @@ const run = async () => {
     gpuErrors.push(event.error.message);
   });
 
-  const canvas = document.querySelector("canvas")!;
+  const gpuCanvas = document.querySelector<HTMLCanvasElement>("#gpu")!;
+  const glCanvas = document.querySelector<HTMLCanvasElement>("#webgl")!;
   const sk = await Skia.init({
     device,
-    module: new URL("../dist/bench/bench-module.js", location.href).href,
+    module: new URL("../dist/lib/skia-wasm.js", location.href).href,
   });
-  // The scenes are measured on the pixels the canvas was given.
-  const surface = sk.surface(canvas, { pixelRatio: 1 });
-  const module = sk.module as BenchModule;
+  // The scenes are measured on the pixels the canvas was given, as
+  // CanvasKit draws them on its own.
+  const surface = sk.surface(gpuCanvas, { pixelRatio: 1 });
   surface.setClearColor(1, 1, 1, 1);
-  module._sk_stats_enable(1);
-  module._sk_stats_null_canvas(NULL_CANVAS ? 1 : 0);
-  const stats = module._sk_stats() >> 3;
 
   // Four 32x32 textures for the image scene.
+  const texturePixels: Uint8Array[] = [];
   const textures = [
     [230, 60, 60],
     [60, 180, 90],
@@ -163,6 +174,7 @@ const run = async () => {
       usage: GPUTextureUsage.TEXTURE_BINDING | GPUTextureUsage.COPY_DST,
     });
     const data = new Uint8Array(32 * 32 * 4);
+    texturePixels.push(data);
     for (let i = 0; i < 32 * 32; i++) {
       const edge = i % 32 < 2 || i < 64 ? 0.6 : 1;
       data.set([r * edge, g * edge, b * edge, 255], i * 4);
@@ -175,26 +187,53 @@ const run = async () => {
     );
     return texture;
   });
-  const env: Env = { sk, module, surface, textures };
+  const canvaskit = order.includes("K") ? await loadCanvasKit(glCanvas) : null;
+  const env: Env = {
+    sk,
+    surface,
+    textures,
+    texturePixels,
+    canvaskit,
+  };
 
+  const interval = await displayInterval();
+  // Busy until nine tenths of the frame: the callback of the next one is not
+  // delayed.
+  const spinFor = interval * 0.9;
+  const spin = (start: number) => {
+    if (LOAD === "spin") {
+      const until = start + spinFor;
+      while (performance.now() < until) {
+        // Nothing: the point is a core that never looks idle.
+      }
+    }
+  };
+
+  const gl = glCanvas.getContext("webgl2");
+  const debugInfo = gl?.getExtension("WEBGL_debug_renderer_info");
   const machine = {
     userAgent: navigator.userAgent,
-    gpu: {
+    webgpu: {
       vendor: adapter.info.vendor,
       architecture: adapter.info.architecture,
       device: adapter.info.device,
       description: adapter.info.description,
     },
+    webgl:
+      gl && debugInfo
+        ? (gl.getParameter(debugInfo.UNMASKED_RENDERER_WEBGL) as string)
+        : null,
     canvas: `${WIDTH}x${HEIGHT} ${navigator.gpu.getPreferredCanvasFormat()}`,
     devicePixelRatio,
+    hardwareConcurrency: navigator.hardwareConcurrency,
     crossOriginIsolated,
     timerResolutionMs: timerResolution(),
-    canvasMode: NULL_CANVAS ? "null" : "graphite",
-    exposeGc: collect !== undefined,
-    profiler: profile !== undefined,
+    profiler: PROFILE && hooks.benchProfile !== undefined,
+    displayIntervalMs: interval,
+    load: LOAD,
+    order: order.join(","),
     frames: FRAMES,
     warmup: WARMUP,
-    repeat: REPEAT,
   };
   document.querySelector("#machine")!.textContent = JSON.stringify(
     machine,
@@ -204,11 +243,31 @@ const run = async () => {
 
   // The canvas of this frame, averaged over a 16x16 grid: what a variant
   // drew, to compare with what the others drew.
-  const context = canvas.getContext("webgpu") as GPUCanvasContext;
+  const context = gpuCanvas.getContext("webgpu") as GPUCanvasContext;
   const readback = device.createBuffer({
     size: WIDTH * HEIGHT * 4,
     usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
   });
+  // Mean red, green and blue of each cell. `bgra` says the pixels are in
+  // that order.
+  const signatureOf = (pixels: Uint8Array, bgra: boolean) => {
+    const cells = 16;
+    const sums = new Float64Array(cells * cells * 3);
+    const red = bgra ? 2 : 0;
+    const blue = bgra ? 0 : 2;
+    for (let y = 0; y < HEIGHT; y++) {
+      const row = Math.floor((y * cells) / HEIGHT) * cells;
+      for (let x = 0; x < WIDTH; x++) {
+        const cell = (row + Math.floor((x * cells) / WIDTH)) * 3;
+        const at = (y * WIDTH + x) * 4;
+        sums[cell] += pixels[at + red];
+        sums[cell + 1] += pixels[at + 1];
+        sums[cell + 2] += pixels[at + blue];
+      }
+    }
+    const perCell = (WIDTH / cells) * (HEIGHT / cells);
+    return Array.from(sums, (sum) => Math.round((sum / perCell) * 10) / 10);
+  };
   const signatureOfCanvas = async () => {
     const encoder = device.createCommandEncoder();
     encoder.copyTextureToBuffer(
@@ -218,41 +277,29 @@ const run = async () => {
     );
     device.queue.submit([encoder.finish()]);
     await readback.mapAsync(GPUMapMode.READ);
-    const pixels = new Uint8Array(readback.getMappedRange());
-    const cells = 16;
-    const sums = new Float64Array(cells * cells * 3);
-    for (let y = 0; y < HEIGHT; y++) {
-      const row = Math.floor((y * cells) / HEIGHT) * cells;
-      for (let x = 0; x < WIDTH; x++) {
-        const cell = (row + Math.floor((x * cells) / WIDTH)) * 3;
-        const at = (y * WIDTH + x) * 4;
-        sums[cell] += pixels[at];
-        sums[cell + 1] += pixels[at + 1];
-        sums[cell + 2] += pixels[at + 2];
-      }
-    }
+    const signature = signatureOf(
+      new Uint8Array(readback.getMappedRange()),
+      navigator.gpu.getPreferredCanvasFormat() === "bgra8unorm"
+    );
     readback.unmap();
-    const perCell = (WIDTH / cells) * (HEIGHT / cells);
-    return Array.from(sums, (sum) => Math.round((sum / perCell) * 10) / 10);
+    return signature;
   };
 
   // A run of as many frames as the timed one, under the profiler. It is a
   // separate run: profiling would slow the timed one down.
   const profileRun = async (variant: Variant | null, start: number) => {
-    if (!profile) {
+    if (!PROFILE || !hooks.benchProfile) {
       return null;
     }
-    collect?.();
-    await profile("start");
+    await collect();
+    await hooks.benchProfile("start");
     await frames(FRAMES, (index) => {
-      for (let r = 0; r < REPEAT; r++) {
-        const frame = start + index * REPEAT + r;
-        variant?.frame(frame * STEP, frame);
-      }
+      const frame = start + index;
+      variant?.frame(frame * STEP, frame);
     });
-    return profile("stop");
+    return hooks.benchProfile("stop");
   };
-  // What the harness itself allocates and collects, to subtract.
+  // What the harness itself allocates, to subtract.
   const baseline = await profileRun(null, 0);
 
   const measure = async (
@@ -260,56 +307,62 @@ const run = async () => {
     label: string,
     variant: Variant
   ): Promise<VariantResult> => {
+    // Only the canvas being drawn to is on the page: the compositor has one
+    // canvas to show, of the same size, whatever the variant.
+    gpuCanvas.style.display = variant.target === "webgpu" ? "block" : "none";
+    glCanvas.style.display = variant.target === "webgl" ? "block" : "none";
+
     status(`${label}: warming up`);
-    await frames(WARMUP, (index) => variant.frame(index * STEP, index));
-    collect?.();
+    await frames(WARMUP, (index) => {
+      const start = performance.now();
+      variant.frame(index * STEP, index);
+      spin(start);
+    });
+    await collect();
 
     status(`${label}: measuring ${FRAMES} frames`);
     const total = new Float64Array(FRAMES);
-    const begin = new Float64Array(FRAMES);
-    const play = new Float64Array(FRAMES);
-    const end = new Float64Array(FRAMES);
-    const outside = new Float64Array(FRAMES);
+    const record = new Float64Array(FRAMES);
+    const submit = new Float64Array(FRAMES);
     const raf = new Float64Array(FRAMES);
     let lastNow = 0;
+    let firstNow = 0;
+    const began = Date.now();
     await frames(FRAMES + 1, (index, now) => {
       // The first frame only gives the next one a previous timestamp.
       if (index > 0) {
         raf[index - 1] = now - lastNow;
+      } else {
+        firstNow = now;
       }
       lastNow = now;
       if (index === FRAMES) {
         return;
       }
-      let inBegin = 0;
-      let inPlay = 0;
-      let inEnd = 0;
+      const frame = WARMUP + index;
       const start = performance.now();
-      for (let r = 0; r < REPEAT; r++) {
-        // A new frame each time: repeating one would only measure caches.
-        const frame = WARMUP + index * REPEAT + r;
-        variant.frame(frame * STEP, frame);
-        const f64 = module.HEAPF64;
-        inBegin += f64[stats];
-        inPlay += f64[stats + 1];
-        inEnd += f64[stats + 2];
-      }
-      const elapsed = (performance.now() - start) / REPEAT;
+      const submitted = variant.frame(frame * STEP, frame);
+      const elapsed = performance.now() - start;
       total[index] = elapsed;
-      begin[index] = inBegin / REPEAT;
-      play[index] = inPlay / REPEAT;
-      end[index] = inEnd / REPEAT;
-      outside[index] = elapsed - (inBegin + inPlay + inEnd) / REPEAT;
+      submit[index] = submitted;
+      record[index] = elapsed - submitted;
+      spin(start);
     });
+    const fps = (FRAMES * 1000) / (lastNow - firstNow);
+    const ended = Date.now();
 
     status(`${label}: measuring allocation`);
-    const profiled = await profileRun(variant, (WARMUP + FRAMES) * REPEAT);
+    const profiled = await profileRun(variant, WARMUP + FRAMES);
 
     // The same frame for every variant, read back in the task that drew it.
-    let signature: number[] | null = NULL_CANVAS ? [] : null;
+    let signature: number[] | null = null;
     await frames(1, () => {
       variant.frame(REFERENCE_FRAME * STEP, REFERENCE_FRAME);
-      if (!NULL_CANVAS) {
+      if (variant.readPixels) {
+        // Not on the WebGPU canvas: the variant hands its pixels over.
+        const pixels = variant.readPixels();
+        signature = pixels ? signatureOf(pixels, false) : [];
+      } else {
         void signatureOfCanvas().then((result) => {
           signature = result;
         });
@@ -321,28 +374,37 @@ const run = async () => {
 
     return {
       id,
+      name: variantNames[id] ?? id,
       frames: FRAMES,
       total: distribution(total),
-      begin: distribution(begin),
-      play: distribution(play),
-      end: distribution(end),
-      outside: distribution(outside),
+      record: distribution(record),
+      submit: distribution(submit),
       raf: distribution(raf),
+      fps,
+      window: [began, ended],
       allocation:
         profiled && baseline
-          ? Math.max(0, profiled.bytes - baseline.bytes) / (FRAMES * REPEAT)
-          : null,
-      minorCollections:
-        profiled && baseline
-          ? Math.max(0, profiled.minorCollections - baseline.minorCollections)
-          : null,
-      majorCollections:
-        profiled && baseline
-          ? Math.max(0, profiled.majorCollections - baseline.majorCollections)
+          ? Math.max(0, profiled.bytes - baseline.bytes) / FRAMES
           : null,
       signature,
     };
   };
+
+  if (PREHEAT > 0) {
+    status(`heating up for ${PREHEAT} s`);
+    const heater = scenes[0].variants.I(env);
+    const until = performance.now() + PREHEAT * 1000;
+    let frame = 0;
+    while (performance.now() < until) {
+      await frames(30, () => {
+        const start = performance.now();
+        heater.frame(frame * STEP, frame);
+        frame++;
+        spin(start);
+      });
+    }
+    heater.dispose();
+  }
 
   const results = [];
   for (const scene of scenes) {
@@ -350,9 +412,7 @@ const run = async () => {
       continue;
     }
     const variants: VariantResult[] = [];
-    // In the order of the URL when it names variants: running them in another
-    // order tells a difference between variants from a drift during the run.
-    for (const id of onlyVariants ?? Object.keys(scene.variants)) {
+    for (const id of order) {
       const make = scene.variants[id];
       if (!make) {
         continue;
@@ -360,18 +420,20 @@ const run = async () => {
       const variant = make(env);
       variants.push(await measure(id, `${scene.id} ${id}`, variant));
       variant.dispose();
-      collect?.();
+      await collect();
     }
     // Every variant must have drawn the reference frame alike.
-    const reference = variants.find(({ id }) => id === "D") ?? variants[0];
+    const reference = variants.find(({ id }) => id === "I") ?? variants[0];
     const differences = Object.fromEntries(
       variants.map(({ id, signature }) => [
         id,
-        signature.reduce(
-          (max, value, i) =>
-            Math.max(max, Math.abs(value - reference.signature[i])),
-          0
-        ),
+        signature.length === reference.signature.length
+          ? signature.reduce(
+              (max, value, i) =>
+                Math.max(max, Math.abs(value - reference.signature[i])),
+              0
+            )
+          : -1,
       ])
     );
     results.push({ id: scene.id, title: scene.title, variants, differences });
@@ -402,16 +464,14 @@ const render = (
     const table = document.createElement("table");
     const header = [
       "variant",
-      "total (median)",
-      "total (p95)",
-      "JS outside",
-      "begin",
-      "play",
-      "end",
+      "frame (median)",
+      "frame (p95)",
+      "record",
+      "submit",
+      "fps",
+      "rAF (p95)",
       "alloc / frame",
-      "GCs (minor + major)",
-      "rAF (median)",
-      "pixels vs D",
+      "pixels vs skia-wasm",
     ];
     table.createTHead().insertRow().innerHTML = header
       .map((cell) => `<th>${cell}</th>`)
@@ -419,21 +479,17 @@ const render = (
     const body = table.createTBody();
     for (const variant of variants) {
       const cells = [
-        variant.id,
+        variant.name,
         ms(variant.total.median),
         ms(variant.total.p95),
-        ms(variant.outside.median),
-        ms(variant.begin.median),
-        ms(variant.play.median),
-        ms(variant.end.median),
+        ms(variant.record.median),
+        ms(variant.submit.median),
+        variant.fps.toFixed(1),
+        ms(variant.raf.p95),
         variant.allocation === null
           ? "n/a"
           : `${(variant.allocation / 1024).toFixed(1)} KB`,
-        variant.minorCollections === null
-          ? "n/a"
-          : `${variant.minorCollections} + ${variant.majorCollections}`,
-        ms(variant.raf.median),
-        NULL_CANVAS ? "n/a" : differences[variant.id].toFixed(1),
+        differences[variant.id].toFixed(1),
       ];
       body.insertRow().innerHTML = cells
         .map((cell) => `<td>${cell}</td>`)

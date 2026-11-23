@@ -21,7 +21,7 @@ export default defineConfig({
     command: "yarn serve",
     cwd: __dirname,
     env: { PORT: String(port) },
-    url: `http://localhost:${port}/tests/display-list.html`,
+    url: `http://localhost:${port}/tests/immediate.html`,
     reuseExistingServer: !process.env.CI,
   },
 });

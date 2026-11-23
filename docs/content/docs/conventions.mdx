@@ -1,6 +1,6 @@
 ---
 title: Conventions
-description: The few rules that the whole immediate API follows.
+description: The few rules that the whole API follows.
 ---
 
 ## Everything comes from `sk`
@@ -122,7 +122,7 @@ paint.shader = shader;
 shader.dispose();
 ```
 
-Images and runtime effects are the exception: only `dispose()` frees them. The display list refers to them by number, so the collector cannot tell when one is still in use.
+Images and runtime effects are the exception: only `dispose()` frees them. The module keeps them in a table and refers to them by number, so the collector is not told when one is no longer in use.
 
 ## Text needs a font file
 

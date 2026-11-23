@@ -3,9 +3,9 @@ title: Documentation
 description: Skia Graphite on WebGPU, compiled to WebAssembly.
 ---
 
-Three short guides, then examples. Each example runs live above its code. It is a complete module that expects a page with a 512 by 512 `<canvas>`, served over HTTPS or from localhost, in a browser with WebGPU.
+Two short guides, then examples. Each example runs live above its code. It is a complete module that expects a page with a 512 by 512 `<canvas>`, served over HTTPS or from localhost, in a browser with WebGPU.
 
-Most examples use the immediate API: a canvas, paints and paths, in the style of CanvasKit, with plain numbers for geometry and CSS strings for colors. The last section is the retained API, the display list.
+The API is a canvas, paints and paths, in the style of CanvasKit, with plain numbers for geometry and CSS strings for colors.
 
 ## Guides
 
@@ -14,10 +14,7 @@ Most examples use the immediate API: a canvas, paints and paths, in the style of
     From a canvas to a first frame.
   </Card>
   <Card title="Conventions" href="/docs/conventions">
-    The few rules that the whole immediate API follows.
-  </Card>
-  <Card title="Immediate and retained" href="/docs/immediate-and-retained">
-    Two ways to draw with the same module, and when to pick which.
+    The few rules that the whole API follows.
   </Card>
 </Cards>
 
@@ -99,30 +96,5 @@ Most examples use the immediate API: a canvas, paints and paths, in the style of
   </Card>
   <Card title="Pictures" href="/docs/pictures">
     Drawing commands recorded once and replayed.
-  </Card>
-</Cards>
-
-## Display list
-
-The retained API. A scene is recorded once as an immutable program, and every number of it lives in a block of wasm memory: animating a frame is writing floats and making one call.
-
-<Cards>
-  <Card title="A first program" href="/docs/display-list/hello">
-    Record a scene once, then draw it.
-  </Card>
-  <Card title="Typed values" href="/docs/display-list/typed-values">
-    Animate a matrix through the typed values of a scene.
-  </Card>
-  <Card title="Raw writes" href="/docs/display-list/raw-writes">
-    Animate by writing floats straight into the data block.
-  </Card>
-  <Card title="Path buffer" href="/docs/display-list/path-buffer">
-    A path whose points are rewritten every frame.
-  </Card>
-  <Card title="Image slots" href="/docs/display-list/image-slots">
-    Change the image a command draws without rebuilding the program.
-  </Card>
-  <Card title="Instances" href="/docs/display-list/instances">
-    One program, 64 instances, drawn in one call.
   </Card>
 </Cards>

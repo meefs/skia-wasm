@@ -1,7 +1,7 @@
 /**
- * The enumerations of the immediate API: strings in TypeScript, the values of
- * Skia's enums in wasm. Each export turns a name into its value, and throws
- * for a name it does not know: from plain JavaScript nothing else would.
+ * The enumerations of the API: strings in TypeScript, the values of Skia's
+ * enums in wasm. Each export turns a name into its value, and throws for a name
+ * it does not know: from plain JavaScript nothing else would.
  */
 
 export const lookup = <K extends string>(kind: string, names: readonly K[]) => {

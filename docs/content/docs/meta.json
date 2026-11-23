@@ -5,7 +5,6 @@
     "---Guides---",
     "getting-started",
     "conventions",
-    "immediate-and-retained",
     "---Platform---",
     "web-worker",
     "video-and-camera",
@@ -30,8 +29,6 @@
     "blur-and-shadows",
     "color-filters",
     "path-effects",
-    "pictures",
-    "---Display list---",
-    "...display-list"
+    "pictures"
   ]
 }

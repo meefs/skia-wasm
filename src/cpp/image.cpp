@@ -1,7 +1,6 @@
 /*
- * The immediate API: images. An image is a store handle, shared with the
- * display list. Pixels are read back asynchronously: nothing here can wait
- * for the GPU.
+ * Images. An image is a handle of the store. Pixels are read back
+ * asynchronously: nothing here can wait for the GPU.
  */
 #include <cstdint>
 #include <cstring>

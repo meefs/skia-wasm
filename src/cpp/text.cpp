@@ -1,6 +1,6 @@
 /*
- * The immediate API: typefaces, fonts, text blobs and paragraphs. There are
- * no system fonts in this build: every typeface comes from bytes.
+ * Typefaces, fonts, text blobs and paragraphs. There are no system fonts in
+ * this build: every typeface comes from bytes.
  */
 #include <cstdint>
 #include <memory>

@@ -15,11 +15,8 @@
 #include "include/gpu/graphite/dawn/DawnGraphiteTypes.h"
 
 #include "context.h"
-#include "program.h"
 
 using skwasm::Context;
-using skwasm::Instance;
-using skwasm::Program;
 
 namespace {
 
@@ -145,88 +142,6 @@ EMSCRIPTEN_KEEPALIVE void sk_resource_release(uint32_t handle) {
   Context::Get()->store().release(handle);
 }
 
-// ---- Programs and instances.
-
-EMSCRIPTEN_KEEPALIVE Program* sk_program_create(const uint32_t* words,
-                                                uint32_t count,
-                                                const uint32_t* imports,
-                                                uint32_t importCount) {
-  return Program::Make(words, count, imports, importCount,
-                       Context::Get()->store())
-      .release();
-}
-
-// Gives up the reference of sk_program_create(). Instances keep the program.
-EMSCRIPTEN_KEEPALIVE void sk_program_release(Program* program) {
-  SkSafeUnref(program);
-}
-
-EMSCRIPTEN_KEEPALIVE Instance* sk_instance_create(Program* program) {
-  return new Instance(sk_ref_sp(program));
-}
-
-EMSCRIPTEN_KEEPALIVE uint32_t* sk_instance_data(Instance* instance) {
-  return instance->data();
-}
-
-EMSCRIPTEN_KEEPALIVE void sk_instance_release(Instance* instance) {
-  delete instance;
-}
-
-// ---- Drawing.
-
-// Clears the texture (from WebGPU.importJsTexture(), reference taken over),
-// plays the instances in order, and submits. The scale is the density of the
-// surface: how many pixels of the texture a unit of the drawing takes.
-EMSCRIPTEN_KEEPALIVE int sk_draw(WGPUTexture texture,
-                                 float r,
-                                 float g,
-                                 float b,
-                                 float a,
-                                 float scaleX,
-                                 float scaleY,
-                                 Instance* const* instances,
-                                 uint32_t count) {
-  Context* context = Context::Get();
-  SkCanvas* canvas = context->beginFrame(texture, SkColor4f{r, g, b, a});
-  if (!canvas) {
-    return 0;
-  }
-  canvas->scale(scaleX, scaleY);
-  for (uint32_t i = 0; i < count; i++) {
-    instances[i]->play(canvas, context->store());
-  }
-  return context->endFrame() ? 1 : 0;
-}
-
-EMSCRIPTEN_KEEPALIVE int sk_draw_one(WGPUTexture texture,
-                                     float r,
-                                     float g,
-                                     float b,
-                                     float a,
-                                     float scaleX,
-                                     float scaleY,
-                                     Instance* instance) {
-  return sk_draw(texture, r, g, b, a, scaleX, scaleY, &instance, 1);
-}
-
 EMSCRIPTEN_KEEPALIVE int sk_tick() { return Context::Get()->tick() ? 1 : 0; }
-
-// ---- Measurements, for the benchmark.
-
-EMSCRIPTEN_KEEPALIVE void sk_stats_enable(int enabled) {
-  Context::Get()->statsEnabled = enabled != 0;
-}
-
-// Frames go to a canvas that draws nothing: see Context::nullCanvas.
-EMSCRIPTEN_KEEPALIVE void sk_stats_null_canvas(int enabled) {
-  Context::Get()->nullCanvas = enabled != 0;
-}
-
-// Three doubles: milliseconds of the last frame spent before, in and after
-// the instances.
-EMSCRIPTEN_KEEPALIVE const double* sk_stats() {
-  return &Context::Get()->stats.begin;
-}
 
 }  // extern "C"

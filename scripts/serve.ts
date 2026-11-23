@@ -47,11 +47,7 @@ export const serve = (port: number) =>
 if (require.main === module) {
   const port = Number(process.env.PORT ?? 8790);
   serve(port).then(() => {
-    for (const page of [
-      "tests/display-list.html",
-      "tests/immediate.html",
-      "bench/index.html",
-    ]) {
+    for (const page of ["tests/immediate.html", "bench/index.html"]) {
       console.log(`http://localhost:${port}/${page}`);
     }
   });

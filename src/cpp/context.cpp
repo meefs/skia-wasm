@@ -13,7 +13,6 @@
 #include "include/gpu/graphite/Surface.h"
 #include "include/gpu/graphite/dawn/DawnBackendContext.h"
 #include "include/gpu/graphite/dawn/DawnGraphiteTypes.h"
-#include "include/utils/SkNoDrawCanvas.h"
 
 // WebGPU.importJsDevice and importJsTexture, which the page calls, create
 // their C++ counterparts through these.
@@ -90,73 +89,6 @@ void Context::forgetEffect(const EffectResource* effect) {
   if (found != fEffects.end() && found->second == effect) {
     fEffects.erase(found);
   }
-}
-
-SkCanvas* Context::beginFrame(WGPUTexture cTexture, const SkColor4f& clear) {
-  if (statsEnabled) {
-    fFrameMark = emscripten_get_now();
-  }
-  fFrameTexture = wgpu::Texture::Acquire(cTexture);
-  fContext->checkAsyncWorkCompletion();
-  if (nullCanvas) {
-    fFrameTexture = nullptr;
-    if (!fNullCanvas) {
-      fNullCanvas = std::make_unique<SkNoDrawCanvas>(4096, 4096);
-    }
-    fNullFrame = true;
-    if (statsEnabled) {
-      const double now = emscripten_get_now();
-      stats.begin = now - fFrameMark;
-      fFrameMark = now;
-    }
-    return fNullCanvas.get();
-  }
-  fFrameSurface = SkSurfaces::WrapBackendTexture(
-      fRecorder.get(),
-      skgpu::graphite::BackendTextures::MakeDawn(fFrameTexture.Get()),
-      SkColorSpace::MakeSRGB(), nullptr);
-  if (!fFrameSurface) {
-    fFrameTexture = nullptr;
-    setError("Graphite cannot draw into this texture.");
-    return nullptr;
-  }
-  SkCanvas* canvas = fFrameSurface->getCanvas();
-  canvas->clear(clear);
-  if (statsEnabled) {
-    const double now = emscripten_get_now();
-    stats.begin = now - fFrameMark;
-    fFrameMark = now;
-  }
-  return canvas;
-}
-
-bool Context::endFrame() {
-  if (fNullFrame) {
-    fNullFrame = false;
-    if (statsEnabled) {
-      stats.play = emscripten_get_now() - fFrameMark;
-      stats.end = 0;
-    }
-    return true;
-  }
-  if (!fFrameSurface) {
-    setError("There is no frame to end.");
-    return false;
-  }
-  double mark = 0;
-  if (statsEnabled) {
-    mark = emscripten_get_now();
-    stats.play = mark - fFrameMark;
-  }
-  // Snapped while the surface is alive: its pending draws go into the
-  // recording.
-  const bool submitted = this->submit();
-  fFrameSurface.reset();
-  fFrameTexture = nullptr;
-  if (statsEnabled) {
-    stats.end = emscripten_get_now() - mark;
-  }
-  return submitted;
 }
 
 bool Context::submit() {

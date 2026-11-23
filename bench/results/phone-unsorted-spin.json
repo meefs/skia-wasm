@@ -1,0 +1,1101 @@
+{
+  "target": "android",
+  "browser": "Chrome/158.0.8127.42",
+  "device": {
+    "model": "SM-S937B",
+    "soc": "SM8750",
+    "android": "17",
+    "chrome": "158.0.8127.42"
+  },
+  "runs": [
+    {
+      "order": "KIR",
+      "load": "spin",
+      "thermal": {
+        "before": {
+          "status": 0,
+          "ap": 34.5,
+          "skin": 33.5,
+          "battery": 32.7
+        },
+        "after": {
+          "status": 0,
+          "ap": 51,
+          "skin": 37.8,
+          "battery": 36.6
+        }
+      },
+      "machine": {
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/158.0.0.0 Mobile Safari/537.36",
+        "webgpu": {
+          "vendor": "qualcomm",
+          "architecture": "adreno-8xx",
+          "device": "",
+          "description": ""
+        },
+        "webgl": "ANGLE (Qualcomm, Adreno (TM) 830, OpenGL ES 3.2)",
+        "canvas": "1024x1024 rgba8unorm",
+        "devicePixelRatio": 2.8125,
+        "hardwareConcurrency": 8,
+        "crossOriginIsolated": true,
+        "timerResolutionMs": 0.004999995231628418,
+        "profiler": false,
+        "displayIntervalMs": 16.699999999999818,
+        "load": "spin",
+        "order": "K,I,R",
+        "frames": 300,
+        "warmup": 120
+      },
+      "baseline": null,
+      "gpuErrors": [],
+      "scenes": [
+        {
+          "id": "rrects",
+          "title": "10,000 rounded rects, each with its own matrix and color",
+          "variants": [
+            {
+              "id": "K",
+              "name": "canvaskit-wasm (WebGL)",
+              "frames": 300,
+              "total": {
+                "median": 10.115000009536743,
+                "p95": 10.444999992847443
+              },
+              "record": {
+                "median": 9.8299999833107,
+                "p95": 10.160000026226044
+              },
+              "submit": {
+                "median": 0.2799999713897705,
+                "p95": 0.3050000071525574
+              },
+              "raf": {
+                "median": 16.6850000000004,
+                "p95": 16.69500000000062
+              },
+              "fps": 59.92497393263635,
+              "allocation": null
+            },
+            {
+              "id": "I",
+              "name": "skia-wasm immediate",
+              "frames": 300,
+              "total": {
+                "median": 27.899999976158142,
+                "p95": 29.064999997615814
+              },
+              "record": {
+                "median": 9.775000035762787,
+                "p95": 10.099999964237213
+              },
+              "submit": {
+                "median": 18.0900000333786,
+                "p95": 18.985000014305115
+              },
+              "raf": {
+                "median": 33.36999999999898,
+                "p95": 41.715000000000146
+              },
+              "fps": 32.045923945408695,
+              "allocation": null
+            },
+            {
+              "id": "R",
+              "name": "skia-wasm retained",
+              "frames": 300,
+              "total": {
+                "median": 29.009999990463257,
+                "p95": 38.64999997615814
+              },
+              "record": {
+                "median": 9.964999973773956,
+                "p95": 13.764999985694885
+              },
+              "submit": {
+                "median": 19.064999997615814,
+                "p95": 25.024999976158142
+              },
+              "raf": {
+                "median": 33.38000000000102,
+                "p95": 50.06000000000495
+              },
+              "fps": 28.357183299887616,
+              "allocation": null
+            }
+          ],
+          "differences": {
+            "K": 0.9000000000000057,
+            "I": 0,
+            "R": 0
+          }
+        },
+        {
+          "id": "shaders",
+          "title": "1,000 rects with a runtime shader, each with its own uniforms",
+          "variants": [
+            {
+              "id": "K",
+              "name": "canvaskit-wasm (WebGL)",
+              "frames": 300,
+              "total": {
+                "median": 5.724999964237213,
+                "p95": 6.610000014305115
+              },
+              "record": {
+                "median": 2.915000021457672,
+                "p95": 3.384999990463257
+              },
+              "submit": {
+                "median": 2.810000002384186,
+                "p95": 3.224999964237213
+              },
+              "raf": {
+                "median": 16.685000000004948,
+                "p95": 16.69499999999971
+              },
+              "fps": 59.92730817518356,
+              "allocation": null
+            },
+            {
+              "id": "I",
+              "name": "skia-wasm immediate",
+              "frames": 300,
+              "total": {
+                "median": 4.830000042915344,
+                "p95": 5.304999947547913
+              },
+              "record": {
+                "median": 1.8399999737739563,
+                "p95": 1.9900000095367432
+              },
+              "submit": {
+                "median": 2.990000009536743,
+                "p95": 3.3799999952316284
+              },
+              "raf": {
+                "median": 16.685000000004948,
+                "p95": 16.69499999999971
+              },
+              "fps": 59.53260948294931,
+              "allocation": null
+            },
+            {
+              "id": "R",
+              "name": "skia-wasm retained",
+              "frames": 300,
+              "total": {
+                "median": 3.0799999833106995,
+                "p95": 3.509999990463257
+              },
+              "record": {
+                "median": 0.9599999785423279,
+                "p95": 1.0300000309944153
+              },
+              "submit": {
+                "median": 2.1050000190734863,
+                "p95": 2.550000011920929
+              },
+              "raf": {
+                "median": 16.685000000004948,
+                "p95": 16.69499999999971
+              },
+              "fps": 59.236091365747285,
+              "allocation": null
+            }
+          ],
+          "differences": {
+            "K": 0.10000000000002274,
+            "I": 0,
+            "R": 0
+          }
+        },
+        {
+          "id": "paths",
+          "title": "200 stroked paths of 64 points, every point moving",
+          "variants": [
+            {
+              "id": "K",
+              "name": "canvaskit-wasm (WebGL)",
+              "frames": 300,
+              "total": {
+                "median": 2.0350000262260437,
+                "p95": 2.174999952316284
+              },
+              "record": {
+                "median": 1.659999966621399,
+                "p95": 1.7199999690055847
+              },
+              "submit": {
+                "median": 0.375,
+                "p95": 0.48500001430511475
+              },
+              "raf": {
+                "median": 16.685000000004948,
+                "p95": 16.69499999999971
+              },
+              "fps": 59.92838557923283,
+              "allocation": null
+            },
+            {
+              "id": "I",
+              "name": "skia-wasm immediate",
+              "frames": 300,
+              "total": {
+                "median": 0.9950000047683716,
+                "p95": 1.0950000286102295
+              },
+              "record": {
+                "median": 0.375,
+                "p95": 0.4050000309944153
+              },
+              "submit": {
+                "median": 0.6150000095367432,
+                "p95": 0.7050000429153442
+              },
+              "raf": {
+                "median": 16.68499999999767,
+                "p95": 16.695000000006985
+              },
+              "fps": 59.92676948768604,
+              "allocation": null
+            },
+            {
+              "id": "R",
+              "name": "skia-wasm retained",
+              "frames": 300,
+              "total": {
+                "median": 1.0300000309944153,
+                "p95": 1.1149999499320984
+              },
+              "record": {
+                "median": 0.41499996185302734,
+                "p95": 0.4449999928474426
+              },
+              "submit": {
+                "median": 0.6150000095367432,
+                "p95": 0.6899999976158142
+              },
+              "raf": {
+                "median": 16.689999999987776,
+                "p95": 16.695000000006985
+              },
+              "fps": 59.92419589219623,
+              "allocation": null
+            }
+          ],
+          "differences": {
+            "K": 0.20000000000001705,
+            "I": 0,
+            "R": 0
+          }
+        },
+        {
+          "id": "images",
+          "title": "2,000 images from 4 textures, rebound every frame",
+          "variants": [
+            {
+              "id": "K",
+              "name": "canvaskit-wasm (WebGL)",
+              "frames": 300,
+              "total": {
+                "median": 2.909999966621399,
+                "p95": 3
+              },
+              "record": {
+                "median": 2.7799999713897705,
+                "p95": 2.8700000047683716
+              },
+              "submit": {
+                "median": 0.12999999523162842,
+                "p95": 0.1499999761581421
+              },
+              "raf": {
+                "median": 16.68499999999767,
+                "p95": 16.694999999992433
+              },
+              "fps": 59.92934330424442,
+              "allocation": null
+            },
+            {
+              "id": "I",
+              "name": "skia-wasm immediate",
+              "frames": 300,
+              "total": {
+                "median": 6.995000004768372,
+                "p95": 7.594999969005585
+              },
+              "record": {
+                "median": 2.2899999618530273,
+                "p95": 2.4800000190734863
+              },
+              "submit": {
+                "median": 4.699999988079071,
+                "p95": 5.2049999833106995
+              },
+              "raf": {
+                "median": 16.69000000000233,
+                "p95": 16.69999999999709
+              },
+              "fps": 58.94089112733294,
+              "allocation": null
+            },
+            {
+              "id": "R",
+              "name": "skia-wasm retained",
+              "frames": 300,
+              "total": {
+                "median": 7.300000011920929,
+                "p95": 7.860000014305115
+              },
+              "record": {
+                "median": 2.435000002384186,
+                "p95": 2.5350000262260437
+              },
+              "submit": {
+                "median": 4.865000009536743,
+                "p95": 5.370000004768372
+              },
+              "raf": {
+                "median": 16.685000000012224,
+                "p95": 16.695000000006985
+              },
+              "fps": 59.138762205994084,
+              "allocation": null
+            }
+          ],
+          "differences": {
+            "K": 3.1000000000000227,
+            "I": 0,
+            "R": 0
+          }
+        }
+      ]
+    },
+    {
+      "order": "RIK",
+      "load": "spin",
+      "thermal": {
+        "before": {
+          "status": 0,
+          "ap": 36,
+          "skin": 34.8,
+          "battery": 34.3
+        },
+        "after": {
+          "status": 0,
+          "ap": 50.8,
+          "skin": 38.3,
+          "battery": 37.3
+        }
+      },
+      "machine": {
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/158.0.0.0 Mobile Safari/537.36",
+        "webgpu": {
+          "vendor": "qualcomm",
+          "architecture": "adreno-8xx",
+          "device": "",
+          "description": ""
+        },
+        "webgl": "ANGLE (Qualcomm, Adreno (TM) 830, OpenGL ES 3.2)",
+        "canvas": "1024x1024 rgba8unorm",
+        "devicePixelRatio": 2.8125,
+        "hardwareConcurrency": 8,
+        "crossOriginIsolated": true,
+        "timerResolutionMs": 0.004999995231628418,
+        "profiler": false,
+        "displayIntervalMs": 16.685000000000173,
+        "load": "spin",
+        "order": "R,I,K",
+        "frames": 300,
+        "warmup": 120
+      },
+      "baseline": null,
+      "gpuErrors": [],
+      "scenes": [
+        {
+          "id": "rrects",
+          "title": "10,000 rounded rects, each with its own matrix and color",
+          "variants": [
+            {
+              "id": "R",
+              "name": "skia-wasm retained",
+              "frames": 300,
+              "total": {
+                "median": 27.185000002384186,
+                "p95": 28.679999947547913
+              },
+              "record": {
+                "median": 9.385000050067902,
+                "p95": 9.615000009536743
+              },
+              "submit": {
+                "median": 17.82499998807907,
+                "p95": 19.259999990463257
+              },
+              "raf": {
+                "median": 33.36000000000058,
+                "p95": 41.720000000000255
+              },
+              "fps": 32.42324876629539,
+              "allocation": null
+            },
+            {
+              "id": "I",
+              "name": "skia-wasm immediate",
+              "frames": 300,
+              "total": {
+                "median": 28.7150000333786,
+                "p95": 38.919999957084656
+              },
+              "record": {
+                "median": 10.235000014305115,
+                "p95": 14.050000011920929
+              },
+              "submit": {
+                "median": 18.4549999833107,
+                "p95": 24.964999973773956
+              },
+              "raf": {
+                "median": 33.375,
+                "p95": 50.06000000000131
+              },
+              "fps": 28.87937901633947,
+              "allocation": null
+            },
+            {
+              "id": "K",
+              "name": "canvaskit-wasm (WebGL)",
+              "frames": 300,
+              "total": {
+                "median": 15.800000011920929,
+                "p95": 18.110000014305115
+              },
+              "record": {
+                "median": 15.384999990463257,
+                "p95": 17.639999985694885
+              },
+              "submit": {
+                "median": 0.4150000214576721,
+                "p95": 0.4700000286102295
+              },
+              "raf": {
+                "median": 16.685000000004948,
+                "p95": 16.69499999999971
+              },
+              "fps": 59.43224377521533,
+              "allocation": null
+            }
+          ],
+          "differences": {
+            "R": 0,
+            "I": 0,
+            "K": 0.9000000000000057
+          }
+        },
+        {
+          "id": "shaders",
+          "title": "1,000 rects with a runtime shader, each with its own uniforms",
+          "variants": [
+            {
+              "id": "R",
+              "name": "skia-wasm retained",
+              "frames": 300,
+              "total": {
+                "median": 4.384999990463257,
+                "p95": 4.9700000286102295
+              },
+              "record": {
+                "median": 1.39000004529953,
+                "p95": 1.4800000190734863
+              },
+              "submit": {
+                "median": 2.9950000047683716,
+                "p95": 3.540000021457672
+              },
+              "raf": {
+                "median": 16.689999999995052,
+                "p95": 16.69499999999971
+              },
+              "fps": 59.03768572271967,
+              "allocation": null
+            },
+            {
+              "id": "I",
+              "name": "skia-wasm immediate",
+              "frames": 300,
+              "total": {
+                "median": 4.924999952316284,
+                "p95": 5.349999964237213
+              },
+              "record": {
+                "median": 1.850000023841858,
+                "p95": 2.050000011920929
+              },
+              "submit": {
+                "median": 3.034999966621399,
+                "p95": 3.365000009536743
+              },
+              "raf": {
+                "median": 16.685000000004948,
+                "p95": 16.69499999999971
+              },
+              "fps": 59.53184159767588,
+              "allocation": null
+            },
+            {
+              "id": "K",
+              "name": "canvaskit-wasm (WebGL)",
+              "frames": 300,
+              "total": {
+                "median": 6.474999964237213,
+                "p95": 6.680000007152557
+              },
+              "record": {
+                "median": 3.2450000047683716,
+                "p95": 3.4200000166893005
+              },
+              "submit": {
+                "median": 3.209999978542328,
+                "p95": 3.26500004529953
+              },
+              "raf": {
+                "median": 16.689999999995052,
+                "p95": 16.69499999999971
+              },
+              "fps": 59.92467468392227,
+              "allocation": null
+            }
+          ],
+          "differences": {
+            "R": 0,
+            "I": 0,
+            "K": 0.10000000000002274
+          }
+        },
+        {
+          "id": "paths",
+          "title": "200 stroked paths of 64 points, every point moving",
+          "variants": [
+            {
+              "id": "R",
+              "name": "skia-wasm retained",
+              "frames": 300,
+              "total": {
+                "median": 1.3499999642372131,
+                "p95": 1.4699999690055847
+              },
+              "record": {
+                "median": 0.5499999523162842,
+                "p95": 0.6000000238418579
+              },
+              "submit": {
+                "median": 0.800000011920929,
+                "p95": 0.8899999856948853
+              },
+              "raf": {
+                "median": 16.689999999995052,
+                "p95": 16.69499999999971
+              },
+              "fps": 59.820001615140065,
+              "allocation": null
+            },
+            {
+              "id": "I",
+              "name": "skia-wasm immediate",
+              "frames": 300,
+              "total": {
+                "median": 1.225000023841858,
+                "p95": 1.2950000166893005
+              },
+              "record": {
+                "median": 0.4650000333786011,
+                "p95": 0.4950000047683716
+              },
+              "submit": {
+                "median": 0.7549999952316284,
+                "p95": 0.8100000023841858
+              },
+              "raf": {
+                "median": 16.68499999999767,
+                "p95": 16.694999999992433
+              },
+              "fps": 59.929463022022965,
+              "allocation": null
+            },
+            {
+              "id": "K",
+              "name": "canvaskit-wasm (WebGL)",
+              "frames": 300,
+              "total": {
+                "median": 2.1200000047683716,
+                "p95": 2.2549999952316284
+              },
+              "record": {
+                "median": 1.7299999594688416,
+                "p95": 1.7899999618530273
+              },
+              "submit": {
+                "median": 0.375,
+                "p95": 0.4650000333786011
+              },
+              "raf": {
+                "median": 16.69000000000233,
+                "p95": 16.695000000006985
+              },
+              "fps": 59.92281940860169,
+              "allocation": null
+            }
+          ],
+          "differences": {
+            "R": 0,
+            "I": 0,
+            "K": 0.20000000000001705
+          }
+        },
+        {
+          "id": "images",
+          "title": "2,000 images from 4 textures, rebound every frame",
+          "variants": [
+            {
+              "id": "R",
+              "name": "skia-wasm retained",
+              "frames": 300,
+              "total": {
+                "median": 6.800000011920929,
+                "p95": 7.285000026226044
+              },
+              "record": {
+                "median": 2.2549999952316284,
+                "p95": 2.3549999594688416
+              },
+              "submit": {
+                "median": 4.540000021457672,
+                "p95": 4.98499995470047
+              },
+              "raf": {
+                "median": 16.68499999999767,
+                "p95": 16.695000000006985
+              },
+              "fps": 59.23755344955088,
+              "allocation": null
+            },
+            {
+              "id": "I",
+              "name": "skia-wasm immediate",
+              "frames": 300,
+              "total": {
+                "median": 6.139999985694885,
+                "p95": 6.639999985694885
+              },
+              "record": {
+                "median": 2.065000057220459,
+                "p95": 2.1449999809265137
+              },
+              "submit": {
+                "median": 4.055000007152557,
+                "p95": 4.555000007152557
+              },
+              "raf": {
+                "median": 16.689999999987776,
+                "p95": 16.69999999999709
+              },
+              "fps": 59.725679951980425,
+              "allocation": null
+            },
+            {
+              "id": "K",
+              "name": "canvaskit-wasm (WebGL)",
+              "frames": 300,
+              "total": {
+                "median": 4.259999990463257,
+                "p95": 4.430000007152557
+              },
+              "record": {
+                "median": 4.069999992847443,
+                "p95": 4.235000014305115
+              },
+              "submit": {
+                "median": 0.1850000023841858,
+                "p95": 0.21999996900558472
+              },
+              "raf": {
+                "median": 16.69000000000233,
+                "p95": 16.695000000006985
+              },
+              "fps": 59.920964248156665,
+              "allocation": null
+            }
+          ],
+          "differences": {
+            "R": 0,
+            "I": 0,
+            "K": 3.1000000000000227
+          }
+        }
+      ]
+    },
+    {
+      "order": "IRK",
+      "load": "spin",
+      "thermal": {
+        "before": {
+          "status": 0,
+          "ap": 35.9,
+          "skin": 34.8,
+          "battery": 34.4
+        },
+        "after": {
+          "status": 0,
+          "ap": 48.3,
+          "skin": 38.4,
+          "battery": 37.5
+        }
+      },
+      "machine": {
+        "userAgent": "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/158.0.0.0 Mobile Safari/537.36",
+        "webgpu": {
+          "vendor": "qualcomm",
+          "architecture": "adreno-8xx",
+          "device": "",
+          "description": ""
+        },
+        "webgl": "ANGLE (Qualcomm, Adreno (TM) 830, OpenGL ES 3.2)",
+        "canvas": "1024x1024 rgba8unorm",
+        "devicePixelRatio": 2.8125,
+        "hardwareConcurrency": 8,
+        "crossOriginIsolated": true,
+        "timerResolutionMs": 0.004999995231628418,
+        "profiler": false,
+        "displayIntervalMs": 16.690000000000055,
+        "load": "spin",
+        "order": "I,R,K",
+        "frames": 300,
+        "warmup": 120
+      },
+      "baseline": null,
+      "gpuErrors": [],
+      "scenes": [
+        {
+          "id": "rrects",
+          "title": "10,000 rounded rects, each with its own matrix and color",
+          "variants": [
+            {
+              "id": "I",
+              "name": "skia-wasm immediate",
+              "frames": 300,
+              "total": {
+                "median": 27.474999964237213,
+                "p95": 29.610000014305115
+              },
+              "record": {
+                "median": 9.625,
+                "p95": 10.129999995231628
+              },
+              "submit": {
+                "median": 17.844999969005585,
+                "p95": 19.115000009536743
+              },
+              "raf": {
+                "median": 33.36499999999978,
+                "p95": 41.715000000000146
+              },
+              "fps": 32.13033778624114,
+              "allocation": null
+            },
+            {
+              "id": "R",
+              "name": "skia-wasm retained",
+              "frames": 300,
+              "total": {
+                "median": 28.460000038146973,
+                "p95": 31.075000047683716
+              },
+              "record": {
+                "median": 10.024999976158142,
+                "p95": 10.129999995231628
+              },
+              "submit": {
+                "median": 18.415000021457672,
+                "p95": 21.085000038146973
+              },
+              "raf": {
+                "median": 33.36999999999898,
+                "p95": 41.720000000001164
+              },
+              "fps": 31.238741037084555,
+              "allocation": null
+            },
+            {
+              "id": "K",
+              "name": "canvaskit-wasm (WebGL)",
+              "frames": 300,
+              "total": {
+                "median": 18.32499998807907,
+                "p95": 18.650000035762787
+              },
+              "record": {
+                "median": 17.849999964237213,
+                "p95": 18.15499997138977
+              },
+              "submit": {
+                "median": 0.4750000238418579,
+                "p95": 0.5099999904632568
+              },
+              "raf": {
+                "median": 16.685000000004948,
+                "p95": 25.040000000000873
+              },
+              "fps": 54.23174853099752,
+              "allocation": null
+            }
+          ],
+          "differences": {
+            "I": 0,
+            "R": 0,
+            "K": 0.9000000000000057
+          }
+        },
+        {
+          "id": "shaders",
+          "title": "1,000 rects with a runtime shader, each with its own uniforms",
+          "variants": [
+            {
+              "id": "I",
+              "name": "skia-wasm immediate",
+              "frames": 300,
+              "total": {
+                "median": 4.875,
+                "p95": 5.415000021457672
+              },
+              "record": {
+                "median": 1.8499999642372131,
+                "p95": 2.064999997615814
+              },
+              "submit": {
+                "median": 3.025000035762787,
+                "p95": 3.439999997615814
+              },
+              "raf": {
+                "median": 16.685000000004948,
+                "p95": 16.69499999999971
+              },
+              "fps": 59.429123836427294,
+              "allocation": null
+            },
+            {
+              "id": "R",
+              "name": "skia-wasm retained",
+              "frames": 300,
+              "total": {
+                "median": 4.320000052452087,
+                "p95": 4.944999992847443
+              },
+              "record": {
+                "median": 1.3700000047683716,
+                "p95": 1.4599999785423279
+              },
+              "submit": {
+                "median": 2.9449999928474426,
+                "p95": 3.534999966621399
+              },
+              "raf": {
+                "median": 16.685000000004948,
+                "p95": 16.69499999999971
+              },
+              "fps": 59.43171395119867,
+              "allocation": null
+            },
+            {
+              "id": "K",
+              "name": "canvaskit-wasm (WebGL)",
+              "frames": 300,
+              "total": {
+                "median": 5.75,
+                "p95": 5.919999957084656
+              },
+              "record": {
+                "median": 2.9200000166893005,
+                "p95": 3.040000021457672
+              },
+              "submit": {
+                "median": 2.834999978542328,
+                "p95": 2.8799999952316284
+              },
+              "raf": {
+                "median": 16.689999999995052,
+                "p95": 16.69499999999971
+              },
+              "fps": 59.92353756606565,
+              "allocation": null
+            }
+          ],
+          "differences": {
+            "I": 0,
+            "R": 0,
+            "K": 0.10000000000002274
+          }
+        },
+        {
+          "id": "paths",
+          "title": "200 stroked paths of 64 points, every point moving",
+          "variants": [
+            {
+              "id": "I",
+              "name": "skia-wasm immediate",
+              "frames": 300,
+              "total": {
+                "median": 1.425000011920929,
+                "p95": 1.550000011920929
+              },
+              "record": {
+                "median": 0.5400000214576721,
+                "p95": 0.5799999833106995
+              },
+              "submit": {
+                "median": 0.8799999952316284,
+                "p95": 0.9750000238418579
+              },
+              "raf": {
+                "median": 16.689999999995052,
+                "p95": 16.69499999999971
+              },
+              "fps": 59.923298178331805,
+              "allocation": null
+            },
+            {
+              "id": "R",
+              "name": "skia-wasm retained",
+              "frames": 300,
+              "total": {
+                "median": 1.3849999904632568,
+                "p95": 1.5699999928474426
+              },
+              "record": {
+                "median": 0.550000011920929,
+                "p95": 0.6100000143051147
+              },
+              "submit": {
+                "median": 0.8300000429153442,
+                "p95": 0.9600000381469727
+              },
+              "raf": {
+                "median": 16.69000000000233,
+                "p95": 16.695000000006985
+              },
+              "fps": 59.92132330250379,
+              "allocation": null
+            },
+            {
+              "id": "K",
+              "name": "canvaskit-wasm (WebGL)",
+              "frames": 300,
+              "total": {
+                "median": 2.199999988079071,
+                "p95": 2.324999988079071
+              },
+              "record": {
+                "median": 1.7950000166893005,
+                "p95": 1.8549999594688416
+              },
+              "submit": {
+                "median": 0.3999999761581421,
+                "p95": 0.4750000238418579
+              },
+              "raf": {
+                "median": 16.685000000012224,
+                "p95": 16.694999999992433
+              },
+              "fps": 59.92688919518181,
+              "allocation": null
+            }
+          ],
+          "differences": {
+            "I": 0,
+            "R": 0,
+            "K": 0.20000000000001705
+          }
+        },
+        {
+          "id": "images",
+          "title": "2,000 images from 4 textures, rebound every frame",
+          "variants": [
+            {
+              "id": "I",
+              "name": "skia-wasm immediate",
+              "frames": 300,
+              "total": {
+                "median": 6.975000023841858,
+                "p95": 7.425000011920929
+              },
+              "record": {
+                "median": 2.2699999809265137,
+                "p95": 2.3550000190734863
+              },
+              "submit": {
+                "median": 4.695000052452087,
+                "p95": 5.120000004768372
+              },
+              "raf": {
+                "median": 16.685000000012224,
+                "p95": 16.695000000006985
+              },
+              "fps": 59.13969485888775,
+              "allocation": null
+            },
+            {
+              "id": "R",
+              "name": "skia-wasm retained",
+              "frames": 300,
+              "total": {
+                "median": 6.8950000405311584,
+                "p95": 7.524999976158142
+              },
+              "record": {
+                "median": 2.259999990463257,
+                "p95": 2.3550000190734863
+              },
+              "submit": {
+                "median": 4.620000004768372,
+                "p95": 5.2049999833106995
+              },
+              "raf": {
+                "median": 16.689999999987776,
+                "p95": 16.695000000006985
+              },
+              "fps": 59.136430702452095,
+              "allocation": null
+            },
+            {
+              "id": "K",
+              "name": "canvaskit-wasm (WebGL)",
+              "frames": 300,
+              "total": {
+                "median": 4.179999947547913,
+                "p95": 4.375
+              },
+              "record": {
+                "median": 3.9950000047683716,
+                "p95": 4.185000002384186
+              },
+              "submit": {
+                "median": 0.18000000715255737,
+                "p95": 0.20499998331069946
+              },
+              "raf": {
+                "median": 16.685000000012224,
+                "p95": 16.695000000006985
+              },
+              "fps": 59.925392885857036,
+              "allocation": null
+            }
+          ],
+          "differences": {
+            "I": 0,
+            "R": 0,
+            "K": 3.1000000000000227
+          }
+        }
+      ]
+    }
+  ]
+}

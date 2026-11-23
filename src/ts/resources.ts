@@ -6,20 +6,22 @@ import { disposeSymbol, ref } from "./native";
 import type { Matrix, Runtime } from "./native";
 import { imageFormats } from "./enums";
 import type { ImageFormat } from "./enums";
-import type { SlotKind } from "./slots";
+
+/** What a uniform holds: a number, a vector, or anything else as floats. */
+export type UniformKind = "f32" | "i32" | "vec2" | "vec3" | "vec4" | "floats";
 
 /** A uniform of an effect: where it is in the uniform block, in words. */
 export interface UniformInfo {
   readonly offset: number;
   readonly size: number;
-  readonly kind: SlotKind;
+  readonly kind: UniformKind;
   /** The SkSL type: "float", "float4", "int", "float3x3"... */
   readonly type: string;
   readonly count: number;
 }
 
 /** The kind of each uniform, for effects whose uniforms are typed by hand. */
-export type UniformKinds = Record<string, SlotKind>;
+export type UniformKinds = Record<string, UniformKind>;
 
 /** A value per uniform: a number, or the numbers of a vector, matrix or array. */
 export type UniformValues<U> = {
@@ -27,16 +29,18 @@ export type UniformValues<U> = {
 };
 
 /**
- * A context resource: an immutable Skia object shared by programs. A handle
- * is one reference. Programs and instances that use the resource hold their
- * own, so `release()` is safe as soon as the handle is no longer needed.
+ * A context resource: an immutable Skia object that the module keeps in a
+ * table and that calls refer to by number. A handle is one reference: what
+ * was made from the resource, a shader for instance, holds its own, so
+ * `dispose()` is safe as soon as the handle is no longer needed. Nothing
+ * else frees it: the garbage collector does not.
  */
 export abstract class Resource {
   private live = true;
 
   constructor(
     protected readonly module: WasmModule,
-    /** What a slot of the data block holds to refer to this resource. */
+    /** The number that refers to this resource in a call into wasm. */
     readonly handle: number
   ) {}
 
@@ -47,7 +51,7 @@ export abstract class Resource {
     }
   }
 
-  /** The same as release(), under the name the rest of the API uses. */
+  /** Frees the resource: the same as release(). */
   dispose() {
     this.release();
   }
