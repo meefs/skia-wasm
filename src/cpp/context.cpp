@@ -150,28 +150,33 @@ bool Context::endFrame() {
   }
   // Snapped while the surface is alive: its pending draws go into the
   // recording.
-  std::unique_ptr<skgpu::graphite::Recording> recording = fRecorder->snap();
+  const bool submitted = this->submit();
   fFrameSurface.reset();
   fFrameTexture = nullptr;
-  bool submitted = false;
-  if (!recording) {
-    setError("Graphite did not snap a recording.");
-  } else {
-    skgpu::graphite::InsertRecordingInfo info;
-    info.fRecording = recording.get();
-    if (fContext->insertRecording(info) !=
-        skgpu::graphite::InsertStatus::kSuccess) {
-      setError("Graphite did not insert the recording.");
-    } else if (!fContext->submit()) {
-      setError("Graphite did not submit the recording.");
-    } else {
-      submitted = true;
-    }
-  }
   if (statsEnabled) {
     stats.end = emscripten_get_now() - mark;
   }
   return submitted;
+}
+
+bool Context::submit() {
+  std::unique_ptr<skgpu::graphite::Recording> recording = fRecorder->snap();
+  if (!recording) {
+    setError("Graphite did not snap a recording.");
+    return false;
+  }
+  skgpu::graphite::InsertRecordingInfo info;
+  info.fRecording = recording.get();
+  if (fContext->insertRecording(info) !=
+      skgpu::graphite::InsertStatus::kSuccess) {
+    setError("Graphite did not insert the recording.");
+    return false;
+  }
+  if (!fContext->submit()) {
+    setError("Graphite did not submit the recording.");
+    return false;
+  }
+  return true;
 }
 
 bool Context::tick() {

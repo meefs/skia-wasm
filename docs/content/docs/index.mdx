@@ -1,11 +1,25 @@
 ---
-title: Examples
-description: Skia Graphite on WebGPU, compiled to WebAssembly, one example at a time.
+title: Documentation
+description: Skia Graphite on WebGPU, compiled to WebAssembly.
 ---
 
-Each page runs its example live, then shows its code. An example is a complete module: it expects a page with a 512 by 512 `<canvas>`, served over HTTPS or from localhost, in a browser with WebGPU.
+Three short guides, then examples. Each example runs live above its code. It is a complete module that expects a page with a 512 by 512 `<canvas>`, served over HTTPS or from localhost, in a browser with WebGPU.
 
-The `skia-wasm` package on npm is still a placeholder. Until it is published, run `yarn build` in the repository and import `dist/lib/index.js` instead.
+Most examples use the immediate API: a canvas, paints and paths, in the style of CanvasKit, with plain numbers for geometry and CSS strings for colors. The last section is the retained API, the display list.
+
+## Guides
+
+<Cards>
+  <Card title="Getting started" href="/docs/getting-started">
+    From a canvas to a first frame.
+  </Card>
+  <Card title="Conventions" href="/docs/conventions">
+    The few rules that the whole immediate API follows.
+  </Card>
+  <Card title="Immediate and retained" href="/docs/immediate-and-retained">
+    Two ways to draw with the same module, and when to pick which.
+  </Card>
+</Cards>
 
 ## Platform
 
@@ -14,10 +28,10 @@ The `skia-wasm` package on npm is still a placeholder. Until it is published, ru
     Draw from a worker, through an OffscreenCanvas.
   </Card>
   <Card title="Video and camera" href="/docs/video-and-camera">
-    A video file and the camera as textures that Skia draws, with color filters.
+    A video file and the camera as textures that Skia draws, through color filters.
   </Card>
-  <Card title="Texture surface" href="/docs/texture-surface">
-    Draw into a GPUTexture and read the pixels back.
+  <Card title="Offscreen and export" href="/docs/export">
+    Draw to a surface that is not on screen, use it as an image and save it as a PNG.
   </Card>
 </Cards>
 
@@ -25,56 +39,90 @@ The `skia-wasm` package on npm is still a placeholder. Until it is published, ru
 
 <Cards>
   <Card title="Breathe" href="/docs/breathe">
-    Six discs blended with Screen, breathing in and out.
+    Six discs blended with Screen through a blur, breathing in and out.
   </Card>
   <Card title="Clock" href="/docs/clock">
-    An analog clock: a static dial and three animated hands.
+    An analog clock with numerals, drawn every frame.
   </Card>
   <Card title="Line chart" href="/docs/line-chart">
     An animated curve with a gradient under it.
   </Card>
   <Card title="Phyllotaxis" href="/docs/phyllotaxis">
-    800 dots in one program, each with its own matrix.
+    800 dots, drawn one by one every frame.
   </Card>
   <Card title="Freehand drawing" href="/docs/drawing">
-    Pointer strokes appended to a path buffer, drawn on demand.
+    A path per stroke of the pointer, drawn on demand.
   </Card>
 </Cards>
 
 ## Basics
 
 <Cards>
-  <Card title="Rounded rectangle" href="/docs/rounded-rect">
-    Record a scene once, then draw it.
+  <Card title="A first frame" href="/docs/first-frame">
+    Load the module, make a paint, draw and flush.
   </Card>
-  <Card title="Animated transform" href="/docs/transform">
-    Animate a matrix through the typed values of a scene.
+  <Card title="Shapes" href="/docs/shapes">
+    Rects, rounded rects, ovals, circles, lines and arcs, filled or stroked.
   </Card>
-  <Card title="Raw writes" href="/docs/raw-writes">
-    Animate by writing floats straight into the data block.
+  <Card title="Transforms" href="/docs/transforms">
+    Translate, rotate and scale, saved and restored.
   </Card>
-  <Card title="SVG path" href="/docs/svg-path">
-    Fill and stroke a static path made from an SVG string.
+  <Card title="Paths" href="/docs/paths">
+    From SVG, built by hand, combined, and filled even-odd.
   </Card>
-  <Card title="Animated path" href="/docs/animated-path">
-    A path whose points are rewritten every frame.
-  </Card>
-  <Card title="Linear gradient" href="/docs/linear-gradient">
-    A gradient whose end point and colors are animated.
+  <Card title="Gradients" href="/docs/gradients">
+    Linear, radial, conical and sweep gradients.
   </Card>
   <Card title="Runtime shader" href="/docs/runtime-shader">
-    An SkSL shader with its uniforms in the data block.
+    An SkSL shader with uniforms that change every frame.
   </Card>
-  <Card title="Image" href="/docs/image">
-    Decode an image file and draw it.
-  </Card>
-  <Card title="Image slots" href="/docs/image-slots">
-    Change the image a command draws without rebuilding the program.
+  <Card title="Images" href="/docs/images">
+    Draw an image, a part of it, or use it as a shader.
   </Card>
   <Card title="Clip and blend modes" href="/docs/clip-and-blend">
-    An animated clip around three discs blended with Plus.
+    An animated clip around three lights blended with Plus.
   </Card>
-  <Card title="Instances" href="/docs/instances">
+  <Card title="Text" href="/docs/text">
+    A font from a file: measured, drawn, and placed glyph by glyph.
+  </Card>
+  <Card title="Paragraph" href="/docs/paragraph">
+    Text that wraps, with spans that have a style of their own.
+  </Card>
+  <Card title="Blur and shadows" href="/docs/blur-and-shadows">
+    A drop shadow, a glow and a frosted glass backdrop.
+  </Card>
+  <Card title="Color filters" href="/docs/color-filters">
+    Grayscale, sepia and a negative, with color matrices.
+  </Card>
+  <Card title="Path effects" href="/docs/path-effects">
+    Dashes, rounded corners, a rough line and a line that grows.
+  </Card>
+  <Card title="Pictures" href="/docs/pictures">
+    Drawing commands recorded once and replayed.
+  </Card>
+</Cards>
+
+## Display list
+
+The retained API. A scene is recorded once as an immutable program, and every number of it lives in a block of wasm memory: animating a frame is writing floats and making one call.
+
+<Cards>
+  <Card title="A first program" href="/docs/display-list/hello">
+    Record a scene once, then draw it.
+  </Card>
+  <Card title="Typed values" href="/docs/display-list/typed-values">
+    Animate a matrix through the typed values of a scene.
+  </Card>
+  <Card title="Raw writes" href="/docs/display-list/raw-writes">
+    Animate by writing floats straight into the data block.
+  </Card>
+  <Card title="Path buffer" href="/docs/display-list/path-buffer">
+    A path whose points are rewritten every frame.
+  </Card>
+  <Card title="Image slots" href="/docs/display-list/image-slots">
+    Change the image a command draws without rebuilding the program.
+  </Card>
+  <Card title="Instances" href="/docs/display-list/instances">
     One program, 64 instances, drawn in one call.
   </Card>
 </Cards>

@@ -1,0 +1,121 @@
+---
+title: Conventions
+description: The few rules that the whole immediate API follows.
+---
+
+## Everything comes from `sk`
+
+There are no constructors to call. An object lives in the wasm module that `sk` loaded, so `sk` makes it.
+
+```ts
+const paint = sk.paint({ color: "#3b82f6", style: "stroke", strokeWidth: 4 });
+const path = sk.path("M 0 0 L 100 100");
+const gradient = sk.linearGradient({
+  start: [0, 0],
+  end: [256, 0],
+  colors: ["#f97316", "#6366f1"],
+});
+const blur = sk.imageFilter.blur(8);
+```
+
+Shaders are made by `sk` itself. Filters and path effects are grouped by kind: `sk.colorFilter`, `sk.imageFilter`, `sk.maskFilter` and `sk.pathEffect`.
+
+## Numbers, not objects
+
+The canvas takes plain numbers. A rect is always x, y, width and height, in that order.
+
+```ts
+canvas.drawRect(x, y, width, height, paint);
+canvas.drawCircle(cx, cy, radius, paint);
+canvas.drawImage(image, x, y, width, height);
+canvas.clipRect(x, y, width, height);
+```
+
+Nothing is allocated per call, which matters in a loop of thousands of draws. An array is only taken where the data is one: the points of a polygon, glyphs, the stops of a gradient. A plain array and a typed array both work.
+
+A matrix is given row by row. The canvas takes its numbers, and an option takes an array of six (the first two rows) or nine:
+
+```ts
+canvas.concat(scaleX, skewX, transX, skewY, scaleY, transY);
+image.shader({ matrix: [0.5, 0, 0, 0, 0.5, 0] });
+```
+
+## Angles are in radians
+
+Every angle, everywhere. Since y points down, a positive angle turns clockwise.
+
+```ts
+canvas.rotate(Math.PI / 2, pivotX, pivotY);
+```
+
+## Colors are CSS strings
+
+Wherever a color is taken, a CSS string works, and so do four numbers in [0, 1]: red, green, blue and an optional alpha, not premultiplied.
+
+```ts
+paint.color = "#3b82f6";
+paint.color = "rebeccapurple";
+paint.color = "rgb(59 130 246 / 50%)";
+paint.color = "hsl(217 91% 60%)";
+paint.color = [0.23, 0.51, 0.96, 1];
+```
+
+Strings can be hex colors with three, four, six or eight digits, the named colors of CSS, `transparent`, `rgb()` and `hsl()`. Anything else throws. A parsed string is remembered, so repeating one is cheap; in a loop that makes up a new color every time, numbers are cheaper. `parseColor()` is exported and returns the four numbers.
+
+## Options, properties and strings
+
+An object takes options when it is made, and has properties afterwards. Enumerations are strings.
+
+```ts
+const paint = sk.paint({ color: "black", style: "stroke" });
+paint.strokeWidth = 4;
+paint.strokeCap = "round";
+paint.blendMode = "multiply";
+```
+
+A name that does not exist throws, and the error lists the ones that do.
+
+## Frames
+
+`surface.getCanvas()` starts a frame and `surface.flush()` sends it to the GPU.
+
+- The canvas is only valid until the flush. Using it afterwards throws: ask for it again.
+- A frame starts cleared to the clear color of the surface, which is transparent unless `setClearColor()` changed it. Most code calls `canvas.clear()` first.
+- An offscreen surface keeps what was drawn to it, and its canvas stays valid.
+
+## Lifetimes
+
+Objects live in wasm memory, which JavaScript does not collect on its own.
+
+- `dispose()` frees an object now.
+- A `using` declaration frees it at the end of its scope, where your toolchain supports it.
+- What is forgotten is freed when the garbage collector finds it, which may be much later.
+
+A paint keeps the shader, the filters and the path effect it is given. Shaders and filters are immutable, so animating one means making another, and the previous one can go at once:
+
+```ts
+const shader = effect.shader({ iTime: time / 1000 });
+paint.shader = shader;
+shader.dispose();
+```
+
+Images and runtime effects are the exception: only `dispose()` frees them. The display list refers to them by number, so the collector cannot tell when one is still in use.
+
+## Text needs a font file
+
+This build has no system fonts. A typeface is made from the bytes of a font file, and a font is a typeface at a size.
+
+```ts
+const response = await fetch("Roboto-Regular.ttf");
+const typeface = sk.typeface(await response.arrayBuffer());
+const font = sk.font(typeface, 24);
+canvas.drawText("Hello", 32, 64, font, paint);
+```
+
+Paragraphs find their fonts by family name: register each typeface with `sk.registerFont()` first.
+
+## What is asynchronous
+
+Four calls return promises: `Skia.init()`, `sk.image()`, `image.readPixels()` and `image.encode()`. Everything else is synchronous.
+
+Reading pixels is asynchronous because the GPU answers later, and this build never blocks to wait for it.

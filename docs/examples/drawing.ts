@@ -1,49 +1,45 @@
-import { Skia, Verb } from "skia-wasm";
+import { Skia } from "skia-wasm";
+import type { Path } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const canvas = document.querySelector("canvas")!;
-const sk = await Skia.init({ device, canvas });
+const element = document.querySelector("canvas")!;
+const sk = await Skia.init({ device, canvas: element });
 
-const CAPACITY = 8192;
+const pen = sk.paint({
+  color: "#0f172a",
+  style: "stroke",
+  strokeWidth: 4,
+  strokeCap: "round",
+  strokeJoin: "round",
+});
 
-const b = sk.builder();
-const strokes = b.pathBuffer({ maxVerbs: CAPACITY, maxPoints: CAPACITY });
-b.drawPath(strokes, { color: "#0f172a", style: "stroke", strokeWidth: 4 });
-const program = b.build();
+// One path per stroke.
+const strokes: Path[] = [];
 
-const scene = program.instantiate();
-sk.surface.setClearColor(1, 1, 1);
-sk.surface.draw(scene);
-
-// Every point comes with one verb: a move starts a stroke, a line extends it.
-let count = 0;
-const add = (event: PointerEvent, verb: number) => {
-  if (count === CAPACITY) {
-    return;
+// Nothing animates: a frame is drawn when a stroke changes.
+const draw = () => {
+  const canvas = sk.surface.getCanvas();
+  canvas.clear("white");
+  for (const stroke of strokes) {
+    canvas.drawPath(stroke, pen);
   }
-  const { f32, u32 } = scene;
-  u32[strokes.verbs + count] = verb;
-  f32[strokes.points + count * 2] = event.offsetX;
-  f32[strokes.points + count * 2 + 1] = event.offsetY;
-  count++;
-  u32[strokes.verbCount] = count;
-  u32[strokes.pointCount] = count;
-  // Nothing animates: a frame is drawn when the path changes.
-  sk.surface.draw(scene);
+  sk.surface.flush();
 };
+draw();
 
-let drawing = false;
-canvas.addEventListener("pointerdown", (event) => {
-  drawing = true;
-  canvas.setPointerCapture(event.pointerId);
-  add(event, Verb.Move);
+let current: Path | null = null;
+element.addEventListener("pointerdown", (event) => {
+  element.setPointerCapture(event.pointerId);
+  current = sk.path().moveTo(event.offsetX, event.offsetY);
+  strokes.push(current);
 });
-canvas.addEventListener("pointermove", (event) => {
-  if (drawing) {
-    add(event, Verb.Line);
+element.addEventListener("pointermove", (event) => {
+  if (current) {
+    current.lineTo(event.offsetX, event.offsetY);
+    draw();
   }
 });
-canvas.addEventListener("pointerup", () => {
-  drawing = false;
+element.addEventListener("pointerup", () => {
+  current = null;
 });

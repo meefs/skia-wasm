@@ -1,56 +1,46 @@
 import { Skia } from "skia-wasm";
+import type { Color } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const canvas = document.querySelector("canvas")!;
-const sk = await Skia.init({ device, canvas });
+const sk = await Skia.init({
+  device,
+  canvas: document.querySelector("canvas")!,
+});
 
 const COUNT = 800;
 const GOLDEN_ANGLE = Math.PI * (3 - Math.sqrt(5));
 
-// One program of 800 dots, each with its own matrix in the data block.
-const b = sk.builder();
-b.drawRect({ width: 512, height: 512 }, { color: "#0f172a" });
-const dots = Array.from({ length: COUNT }, (_, i) => {
-  const transform = b.matrix();
-  const hue = i / COUNT;
-  b.save();
-  b.concat(transform);
-  b.drawRRect(
-    { x: -5, y: -5, width: 10, height: 10, r: 5 },
-    {
-      color: [
-        0.5 + 0.5 * Math.cos(2 * Math.PI * hue),
-        0.5 + 0.5 * Math.cos(2 * Math.PI * (hue + 1 / 3)),
-        0.5 + 0.5 * Math.cos(2 * Math.PI * (hue + 2 / 3)),
-      ],
-    }
-  );
-  b.restore();
-  return transform;
+// A color is a CSS string or RGBA in [0, 1]: numbers are cheaper in a loop.
+const colors: Color[] = Array.from({ length: COUNT }, (_, i) => {
+  const hue = (i / COUNT) * 2 * Math.PI;
+  return [
+    0.5 + 0.5 * Math.cos(hue),
+    0.5 + 0.5 * Math.cos(hue + (2 * Math.PI) / 3),
+    0.5 + 0.5 * Math.cos(hue + (4 * Math.PI) / 3),
+  ];
 });
-const program = b.build({ dots });
-
-const scene = program.instantiate();
+const paint = sk.paint();
 
 const frame = (time: number) => {
   const t = time / 1000;
   const spread = 7 + 1.5 * Math.sin(t);
-  scene.values.dots.forEach((dot, i) => {
+
+  const canvas = sk.surface.getCanvas();
+  canvas.clear("#0f172a");
+  // 800 dots a frame: one call to set the color, one to draw.
+  for (let i = 0; i < COUNT; i++) {
     const angle = i * GOLDEN_ANGLE + t * 0.2;
     const radius = spread * Math.sqrt(i);
-    const scale = 0.6 + 0.4 * Math.sin(t * 2 - i / 40);
-    dot.set(
-      scale,
-      0,
+    paint.color = colors[i];
+    canvas.drawCircle(
       256 + radius * Math.cos(angle),
-      0,
-      scale,
-      256 + radius * Math.sin(angle)
+      256 + radius * Math.sin(angle),
+      3 + 2 * Math.sin(t * 2 - i / 40),
+      paint
     );
-  });
-  // 800 matrices were written, and this is the only call into wasm.
-  sk.surface.draw(scene);
+  }
+  sk.surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

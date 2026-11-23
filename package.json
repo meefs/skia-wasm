@@ -20,6 +20,7 @@
   "scripts": {
     "prepare-skia": "tsx scripts/skia.ts",
     "generate-format": "tsx scripts/generate-format.ts",
+    "generate-exports": "tsx scripts/generate-exports.ts",
     "build": "tsx scripts/build.ts",
     "build-bench": "tsx scripts/build-bench.ts",
     "serve": "tsx scripts/serve.ts",

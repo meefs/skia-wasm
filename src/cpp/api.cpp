@@ -83,7 +83,8 @@ EMSCRIPTEN_KEEPALIVE uint32_t sk_effect_create(const char* sksl) {
   return effect ? Context::Get()->store().add(std::move(effect)) : 0;
 }
 
-// The uniforms of an effect as JSON, valid until the next call.
+// The uniforms and the children of an effect as JSON, valid until the next
+// call.
 EMSCRIPTEN_KEEPALIVE const char* sk_effect_describe(uint32_t handle) {
   skwasm::Resource* resource = Context::Get()->store().get(handle);
   if (!resource || resource->type() != skwasm::Resource::Type::kEffect) {
@@ -102,6 +103,13 @@ EMSCRIPTEN_KEEPALIVE const char* sk_effect_describe(uint32_t handle) {
                     "\",\"offset\":" + std::to_string(uniform.offset) +
                     ",\"count\":" + std::to_string(uniform.count) +
                     ",\"size\":" + std::to_string(uniform.sizeInBytes()) + "}";
+  }
+  gDescription += "],\"children\":[";
+  first = true;
+  for (const SkRuntimeEffect::Child& child : effect->children()) {
+    gDescription += first ? "" : ",";
+    first = false;
+    gDescription += "\"" + std::string(child.name) + "\"";
   }
   gDescription += "]}";
   return gDescription.c_str();

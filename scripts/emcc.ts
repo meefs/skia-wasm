@@ -60,7 +60,8 @@ export const link = async (options: LinkOptions) => {
       : []),
     "-sMODULARIZE",
     "-sEXPORT_ES6",
-    "-sENVIRONMENT=web",
+    // Pages and workers: a worker draws to an OffscreenCanvas.
+    "-sENVIRONMENT=web,worker",
     "-sALLOW_MEMORY_GROWTH",
     `-sASSERTIONS=${options.debug ? 1 : 0}`,
     // WebGPU.importJsDevice and importJsTexture hand over the page's objects;

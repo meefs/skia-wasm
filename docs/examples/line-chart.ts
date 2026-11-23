@@ -2,31 +2,41 @@ import { Skia } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const canvas = document.querySelector("canvas")!;
-const sk = await Skia.init({ device, canvas });
+const sk = await Skia.init({
+  device,
+  canvas: document.querySelector("canvas")!,
+});
 
 const COUNT = 48;
 const LEFT = 32;
 const RIGHT = 480;
 const BOTTOM = 448;
 
-const b = sk.builder();
-const fade = b.linearGradient({
-  start: [0, 96],
-  end: [0, BOTTOM],
-  colors: ["#3b82f6aa", "#3b82f600"],
+const stroke = sk.paint({
+  color: "#3b82f6",
+  style: "stroke",
+  strokeWidth: 4,
+  strokeJoin: "round",
 });
-// The area under the curve is the curve plus two corners, closed.
-const area = b.pathBuffer({ maxVerbs: COUNT + 3, maxPoints: COUNT + 2 });
-const line = b.pathBuffer({ maxVerbs: COUNT, maxPoints: COUNT });
-b.drawPath(area, { shader: fade });
-b.drawPath(line, { color: "#3b82f6", style: "stroke", strokeWidth: 4 });
-const program = b.build({ area, line });
+const fade = sk.paint({
+  shader: sk.linearGradient({
+    start: [0, 96],
+    end: [0, BOTTOM],
+    colors: ["#3b82f6aa", "#3b82f600"],
+  }),
+});
+const grid = sk.paint({
+  color: "#cbd5e1",
+  style: "stroke",
+  strokeWidth: 1,
+  pathEffect: sk.pathEffect.dash([4, 4]),
+});
 
-const scene = program.instantiate();
-sk.surface.setClearColor(1, 1, 1);
-
+// Two paths, emptied and filled again every frame.
+const line = sk.path();
+const area = sk.path();
 const curve = new Float32Array(COUNT * 2);
+// The area under the curve is the curve plus two corners, closed.
 const outline = new Float32Array((COUNT + 2) * 2);
 outline.set([RIGHT, BOTTOM, LEFT, BOTTOM], COUNT * 2);
 
@@ -38,9 +48,18 @@ const frame = (time: number) => {
       256 + 80 * Math.sin(i / 6 + t) + 40 * Math.sin(i / 2.5 - t * 1.7);
   }
   outline.set(curve);
-  scene.values.line.setPolyline(curve);
-  scene.values.area.setPolyline(outline, true);
-  sk.surface.draw(scene);
+  // The points go to wasm in one call each.
+  line.reset().addPolygon(curve);
+  area.reset().addPolygon(outline, true);
+
+  const canvas = sk.surface.getCanvas();
+  canvas.clear("white");
+  for (let y = 128; y <= BOTTOM; y += 80) {
+    canvas.drawLine(LEFT, y, RIGHT, y, grid);
+  }
+  canvas.drawPath(area, fade);
+  canvas.drawPath(line, stroke);
+  sk.surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

@@ -1,0 +1,64 @@
+---
+title: Getting started
+description: From a canvas to a first frame.
+---
+
+## What you need
+
+- **A browser with WebGPU**, and a page served over HTTPS or from localhost. Browsers do not expose WebGPU anywhere else.
+- **The library.** The `skia-wasm` package on npm is still a placeholder. Until it is published, clone the [repository](https://github.com/wcandillon/skia-wasm) and run `yarn build`; its README says what the build needs. `dist/lib` then holds three files to serve together: `index.js`, `skia-wasm.js` and `skia-wasm.wasm`.
+- **A canvas.** The examples of this site use one of 512 by 512.
+
+```html
+<canvas width="512" height="512"></canvas>
+<script type="module" src="main.js"></script>
+```
+
+## A first frame
+
+<Example name="first-frame" />
+
+<include>../../examples/first-frame.ts</include>
+
+Four things happen here:
+
+1. **The device is yours.** Skia draws with the `GPUDevice` of the page. That is why it can wrap your textures, and why your own WebGPU code can run next to it.
+2. **`Skia.init()` gives you `sk`.** It loads the wasm module, creates Skia's context on the device and configures the canvas. Everything else comes from `sk`.
+3. **A paint says how to draw.** A color here; it also holds strokes, shaders, blend modes and filters.
+4. **A frame is `getCanvas()`, draw, `flush()`.** Nothing reaches the GPU before the flush.
+
+## Animating
+
+Draw one frame per animation frame. The canvas of a new frame starts from scratch: no transform and no clip carry over from the previous one.
+
+```ts
+const frame = (time: number) => {
+  const canvas = sk.surface.getCanvas();
+  canvas.clear("white");
+  canvas.rotate(time / 1000, 256, 256);
+  canvas.drawRoundedRect(96, 156, 320, 200, 32, paint);
+  sk.surface.flush();
+  requestAnimationFrame(frame);
+};
+requestAnimationFrame(frame);
+```
+
+## Where the module is loaded from
+
+The library loads `skia-wasm.js` from the folder of the file it is in, and `skia-wasm.js` loads `skia-wasm.wasm` from its own. Served as they are, the three files of `dist/lib` find each other.
+
+A bundler moves the library into a bundle of yours. Either copy `skia-wasm.js` and `skia-wasm.wasm` next to that bundle, or say where they are:
+
+```ts
+const sk = await Skia.init({
+  device,
+  canvas,
+  module: new URL("/skia/skia-wasm.js", location.href).href,
+});
+```
+
+## Next
+
+- [Conventions](./conventions.mdx): the few rules that the whole API follows.
+- [Immediate and retained](./immediate-and-retained.mdx): the two ways to draw, and when to pick which.
+- The [examples](./index.mdx): each one runs live above its code.

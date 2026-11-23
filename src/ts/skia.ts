@@ -1,11 +1,37 @@
 /// <reference types="@webgpu/types" />
 import { Builder } from "./builder";
+import { Canvas } from "./canvas";
+import type { ColorInput } from "./color";
+import {
+  colorFilters,
+  imageFilters,
+  maskFilters,
+  pathEffects,
+  shaders,
+} from "./effects";
+import type {
+  ConicalGradientOptions,
+  LinearGradientOptions,
+  NoiseOptions,
+  RadialGradientOptions,
+  Shader,
+  SweepGradientOptions,
+} from "./effects";
+import type { BlendModeName } from "./enums";
 import { allocateString, lastError, readString } from "./module";
 import type { ModuleFactory, WasmModule } from "./module";
+import { NativeObject, ref, Scratch } from "./native";
+import type { Runtime } from "./native";
+import { Paint } from "./paint";
+import type { PaintOptions } from "./paint";
+import { Path, pathFromSVG } from "./path";
+import { PictureRecorder } from "./picture";
 import type { Instance } from "./program";
 import { Effect, Image } from "./resources";
 import type { UniformInfo, UniformKinds } from "./resources";
 import type { SlotKind } from "./slots";
+import { Font, makeParagraph, Typeface } from "./text";
+import type { ParagraphStyle, TextSpan } from "./text";
 
 export interface InitOptions {
   device: GPUDevice;
@@ -40,8 +66,11 @@ const kindOfUniform = (type: string, count: number): SlotKind => {
 };
 
 /**
- * Where instances are drawn: a canvas, whose current texture changes every
- * frame, or one texture.
+ * Where drawing ends up: a canvas of the page, whose current texture changes
+ * every frame, or one texture.
+ *
+ * Immediate mode: `getCanvas()`, draw, `flush()`. Retained mode:
+ * `draw(scene)`.
  */
 export class Surface {
   private red = 0;
@@ -51,13 +80,33 @@ export class Surface {
   // Pointers of the instances of draw(scenes), in wasm memory.
   private scratch = 0;
   private capacity = 0;
+  // The frame that getCanvas() began, until flush().
+  private frame = 0;
+  private readonly canvas: Canvas;
+  private readonly module: WasmModule;
 
   constructor(
-    private readonly module: WasmModule,
+    runtime: Runtime,
     private readonly target: GPUCanvasContext | GPUTexture
-  ) {}
+  ) {
+    this.module = runtime.module;
+    this.canvas = new Canvas(runtime);
+  }
 
-  /** What the surface is cleared to before each draw. Transparent at first. */
+  get width() {
+    const { target } = this;
+    return "canvas" in target ? target.canvas.width : target.width;
+  }
+
+  get height() {
+    const { target } = this;
+    return "canvas" in target ? target.canvas.height : target.height;
+  }
+
+  /**
+   * What the surface is cleared to before anything is drawn. Transparent at
+   * first.
+   */
   setClearColor(r: number, g: number, b: number, a = 1) {
     this.red = r;
     this.green = g;
@@ -66,8 +115,9 @@ export class Surface {
   }
 
   /**
-   * Hands this frame's texture over to wasm. Used by draw(); public for code
-   * that draws by other means, such as the benchmark baselines.
+   * Hands this frame's texture over to wasm. Used by getCanvas() and draw();
+   * public for code that draws by other means, such as the benchmark
+   * baselines.
    */
   acquire() {
     const { target } = this;
@@ -77,11 +127,51 @@ export class Surface {
   }
 
   /**
+   * The canvas of the frame being drawn. The first call after a flush()
+   * starts a frame, cleared to the clear color; the canvas is valid until
+   * the next flush().
+   */
+  getCanvas() {
+    if (this.frame === 0) {
+      const { module } = this;
+      const frame = module._sk_frame_begin(
+        this.acquire(),
+        this.red,
+        this.green,
+        this.blue,
+        this.alpha
+      );
+      if (frame === 0) {
+        throw new Error(lastError(module));
+      }
+      this.frame = frame;
+      this.canvas.pointer = module._sk_frame_canvas(frame);
+    }
+    return this.canvas;
+  }
+
+  /** Sends what was drawn since getCanvas() to the GPU, and ends the frame. */
+  flush() {
+    const { frame, module } = this;
+    if (frame === 0) {
+      return;
+    }
+    this.frame = 0;
+    this.canvas.pointer = 0;
+    if (module._sk_frame_end(frame) === 0) {
+      throw new Error(lastError(module));
+    }
+  }
+
+  /**
    * Clears the surface, plays the instances in order and submits: one call
    * into wasm, whatever the number of instances.
    */
   draw(scene: Instance | readonly Instance[]) {
     const { module } = this;
+    if (this.frame !== 0) {
+      throw new Error("A frame is being drawn: flush() it first.");
+    }
     let drawn: number;
     if (Array.isArray(scene)) {
       const scenes: readonly Instance[] = scene;
@@ -132,17 +222,83 @@ export class Surface {
 }
 
 /**
- * Skia Graphite on the page's GPUDevice: the context that resources,
- * programs and surfaces belong to.
+ * A surface whose texture Skia owns: for drawing something once and using
+ * the result as an image.
+ */
+export class OffscreenSurface extends NativeObject {
+  private readonly canvas: Canvas;
+
+  constructor(
+    private readonly runtime: Runtime,
+    readonly width: number,
+    readonly height: number
+  ) {
+    const { module } = runtime;
+    super(module._sk_offscreen_new(width, height), module._sk_unref, "surface");
+    this.canvas = new Canvas(runtime);
+    this.canvas.pointer = module._sk_offscreen_canvas(this.pointer);
+  }
+
+  /** Always the same canvas. Nothing clears it: what was drawn stays. */
+  getCanvas() {
+    this.canvas.pointer = this.runtime.module._sk_offscreen_canvas(ref(this));
+    return this.canvas;
+  }
+
+  /** Sends what was drawn to the GPU. */
+  flush() {
+    const { module } = this.runtime;
+    if (module._sk_submit() === 0) {
+      throw new Error(lastError(module));
+    }
+  }
+
+  /** What the surface holds now, as an image. */
+  snapshot() {
+    const { module } = this.runtime;
+    const handle = module._sk_offscreen_snapshot(ref(this));
+    if (handle === 0) {
+      throw new Error(lastError(module));
+    }
+    return new Image(this.runtime, handle);
+  }
+
+  dispose() {
+    this.canvas.pointer = 0;
+    super.dispose();
+  }
+}
+
+/**
+ * Skia Graphite on the page's GPUDevice: the context that everything else
+ * comes from.
  */
 export class Skia {
   private canvasSurface: Surface | null = null;
+  private readonly runtime: Runtime;
+  private readonly shaders: ReturnType<typeof shaders>;
+
+  /** Color filters: `sk.colorFilter.matrix(...)`. */
+  readonly colorFilter: ReturnType<typeof colorFilters>;
+  /** Image filters: `sk.imageFilter.blur(8)`. */
+  readonly imageFilter: ReturnType<typeof imageFilters>;
+  /** Mask filters: `sk.maskFilter.blur(4)`. */
+  readonly maskFilter: ReturnType<typeof maskFilters>;
+  /** Path effects: `sk.pathEffect.dash([8, 4])`. */
+  readonly pathEffect: ReturnType<typeof pathEffects>;
 
   private constructor(
     /** The Emscripten module, for code that needs its other exports. */
     readonly module: WasmModule,
     readonly device: GPUDevice
-  ) {}
+  ) {
+    this.runtime = { module, scratch: new Scratch(module) };
+    this.shaders = shaders(this.runtime);
+    this.colorFilter = colorFilters(this.runtime);
+    this.imageFilter = imageFilters(this.runtime);
+    this.maskFilter = maskFilters(this.runtime);
+    this.pathEffect = pathEffects(this.runtime);
+  }
 
   static async init(options: InitOptions) {
     let factory: ModuleFactory;
@@ -164,6 +320,8 @@ export class Skia {
     return skia;
   }
 
+  // ---- Surfaces.
+
   /** The surface of the canvas given to init(). */
   get surface() {
     if (this.canvasSurface === null) {
@@ -175,7 +333,7 @@ export class Skia {
   /** A surface on a canvas, which it configures, or on a texture. */
   makeSurface(target: HTMLCanvasElement | OffscreenCanvas | GPUTexture) {
     if (!("getContext" in target)) {
-      return new Surface(this.module, target);
+      return new Surface(this.runtime, target);
     }
     const context = target.getContext("webgpu") as GPUCanvasContext | null;
     if (context === null) {
@@ -192,8 +350,115 @@ export class Skia {
         GPUTextureUsage.COPY_SRC,
       alphaMode: "premultiplied",
     });
-    return new Surface(this.module, context);
+    return new Surface(this.runtime, context);
   }
+
+  /** A surface that is not shown: draw to it, then take a snapshot. */
+  makeOffscreenSurface(width: number, height: number) {
+    return new OffscreenSurface(this.runtime, width, height);
+  }
+
+  /** Records what is drawn to its canvas into a picture. */
+  pictureRecorder() {
+    return new PictureRecorder(this.runtime);
+  }
+
+  // ---- Immediate mode: what is drawn with.
+
+  paint(options?: PaintOptions) {
+    return new Paint(this.module, options);
+  }
+
+  /** An empty path, or the path of an SVG path string. */
+  path(svg?: string) {
+    return svg === undefined
+      ? new Path(this.runtime)
+      : pathFromSVG(this.runtime, svg);
+  }
+
+  linearGradient(options: LinearGradientOptions) {
+    return this.shaders.linearGradient(options);
+  }
+
+  radialGradient(options: RadialGradientOptions) {
+    return this.shaders.radialGradient(options);
+  }
+
+  /** A gradient from one circle to another. */
+  conicalGradient(options: ConicalGradientOptions) {
+    return this.shaders.conicalGradient(options);
+  }
+
+  /** A gradient around a center. */
+  sweepGradient(options: SweepGradientOptions) {
+    return this.shaders.sweepGradient(options);
+  }
+
+  /** A shader of one color. */
+  colorShader(color: ColorInput) {
+    return this.shaders.color(color);
+  }
+
+  /** The source shader blended over the destination shader. */
+  blendShader(mode: BlendModeName, destination: Shader, source: Shader) {
+    return this.shaders.blend(mode, destination, source);
+  }
+
+  /** Perlin noise, as smooth clouds. */
+  fractalNoise(options: NoiseOptions) {
+    return this.shaders.fractalNoise(options);
+  }
+
+  /** Perlin noise, as ridges. */
+  turbulence(options: NoiseOptions) {
+    return this.shaders.turbulence(options);
+  }
+
+  // ---- Text.
+
+  /** Loads a font file: TrueType, OpenType, or a collection of them. */
+  typeface(bytes: ArrayBuffer | Uint8Array) {
+    const { module } = this;
+    const data = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+    const pointer = module._malloc(data.length);
+    module.HEAPU8.set(data, pointer);
+    const typeface = module._sk_typeface_from_data(pointer, data.length);
+    module._free(pointer);
+    if (typeface === 0) {
+      throw new Error(lastError(module));
+    }
+    return new Typeface(this.runtime, typeface);
+  }
+
+  /** A typeface at a size, for drawText() and for measuring. */
+  font(typeface: Typeface | null, size = 12) {
+    return new Font(this.runtime, typeface, size);
+  }
+
+  /**
+   * Makes a typeface available to paragraphs, under a family name or, if
+   * none is given, under its own. The first one registered is what text
+   * falls back to.
+   */
+  registerFont(typeface: Typeface, family?: string) {
+    const { module } = this;
+    const { scratch } = this.runtime;
+    scratch.reset();
+    module._sk_fonts_register(
+      ref(typeface),
+      family === undefined ? 0 : scratch.text(family)
+    );
+  }
+
+  /**
+   * Text to lay out in lines: one text, or spans with styles of their own
+   * over the style of the whole.
+   */
+  paragraph(spans: TextSpan | readonly TextSpan[], style?: ParagraphStyle) {
+    return makeParagraph(this.runtime, spans, style);
+  }
+
+  // ---- Resources, shared by both modes.
 
   /**
    * Compiles a runtime shader, or returns the one already compiled from the
@@ -219,6 +484,7 @@ export class Skia {
         count: number;
         size: number;
       }[];
+      children: string[];
     };
     const uniforms: Record<string, UniformInfo> = {};
     for (const uniform of description.uniforms) {
@@ -231,15 +497,15 @@ export class Skia {
       };
     }
     return new Effect<U>(
-      module,
+      this.runtime,
       handle,
       description.size / 4,
-      uniforms as { readonly [K in keyof U]: UniformInfo }
+      uniforms as { readonly [K in keyof U]: UniformInfo },
+      description.children
     );
   }
 
   /** Decodes an encoded image (PNG, JPEG, WebP) and uploads it to the GPU. */
-
   async image(encoded: ArrayBuffer | Uint8Array) {
     const { module } = this;
     const bytes =
@@ -251,7 +517,7 @@ export class Skia {
     if (handle === 0) {
       throw new Error(lastError(module));
     }
-    return new Image(module, handle);
+    return new Image(this.runtime, handle);
   }
 
   /**
@@ -267,8 +533,10 @@ export class Skia {
     if (handle === 0) {
       throw new Error(lastError(module));
     }
-    return new Image(module, handle);
+    return new Image(this.runtime, handle);
   }
+
+  // ---- Retained mode.
 
   /** Starts recording a program. */
   builder() {

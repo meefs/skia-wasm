@@ -18,7 +18,7 @@ export default function HomePage() {
           href={docsRoute}
           className="rounded-full bg-fd-primary px-5 py-2 text-sm font-medium text-fd-primary-foreground"
         >
-          Browse the examples
+          Read the docs
         </Link>
         <a
           href={githubUrl}

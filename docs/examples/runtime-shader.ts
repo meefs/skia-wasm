@@ -2,10 +2,12 @@ import { Skia } from "skia-wasm";
 
 const adapter = await navigator.gpu.requestAdapter();
 const device = await adapter!.requestDevice();
-const canvas = document.querySelector("canvas")!;
-const sk = await Skia.init({ device, canvas });
+const sk = await Skia.init({
+  device,
+  canvas: document.querySelector("canvas")!,
+});
 
-// The type argument names the kind of each uniform for the type checker.
+// SkSL, compiled once. The type argument names the kind of each uniform.
 const effect = sk.effect<{ iTime: "f32"; iResolution: "vec2" }>(`
   uniform float iTime;
   uniform float2 iResolution;
@@ -17,17 +19,20 @@ const effect = sk.effect<{ iTime: "f32"; iResolution: "vec2" }>(`
   }
 `);
 
-const b = sk.builder();
-// The uniforms live in the data block: each one is a slot.
-const shader = b.shader(effect, { iResolution: [512, 512] });
-b.drawRect({ width: 512, height: 512 }, { shader });
-const program = b.build({ time: shader.uniforms.iTime });
-
-const scene = program.instantiate();
+const paint = sk.paint();
 
 const frame = (time: number) => {
-  scene.values.time = time / 1000;
-  sk.surface.draw(scene);
+  // A shader holds the values of its uniforms: new values, new shader.
+  const shader = effect.shader({
+    iTime: time / 1000,
+    iResolution: [512, 512],
+  });
+  paint.shader = shader;
+  shader.dispose();
+
+  const canvas = sk.surface.getCanvas();
+  canvas.drawPaint(paint);
+  sk.surface.flush();
   requestAnimationFrame(frame);
 };
 requestAnimationFrame(frame);

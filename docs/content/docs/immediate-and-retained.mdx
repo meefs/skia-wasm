@@ -1,0 +1,73 @@
+---
+title: Immediate and retained
+description: Two ways to draw with the same module, and when to pick which.
+---
+
+skia-wasm has two APIs. They share the same `sk`, the same surfaces, and the same images and runtime effects.
+
+## Immediate
+
+You draw every frame by calling the canvas, as in CanvasKit or Canvas 2D.
+
+```ts
+const frame = (time: number) => {
+  const canvas = sk.surface.getCanvas();
+  canvas.clear("white");
+  canvas.rotate(time / 1000, 256, 256);
+  canvas.drawRoundedRect(156, 196, 200, 120, 16, paint);
+  sk.surface.flush();
+  requestAnimationFrame(frame);
+};
+```
+
+It covers everything the library exposes: shapes, paths, images, text and paragraphs, shaders, filters, layers, pictures and export. Most of the examples use it.
+
+## Retained: the display list
+
+You record a scene once as a program. Every number of the scene lives in a block of wasm memory, and animating a frame is writing numbers into that block, then making one call.
+
+```ts
+const b = sk.builder();
+const transform = b.matrix();
+b.save();
+b.concat(transform);
+b.drawRRect({ x: 156, y: 196, width: 200, height: 120, r: 16 }, { color: "#3b82f6" });
+b.restore();
+const scene = b.build({ transform }).instantiate();
+
+const frame = (time: number) => {
+  scene.values.transform.setRotate(time / 1000, 256, 256);
+  sk.surface.draw(scene);
+  requestAnimationFrame(frame);
+};
+```
+
+It covers less: rects, rounded rects, paths, images, clips, a 3x3 transform, runtime shaders and a linear gradient. It has no text, no filters and no layers.
+
+## Which one
+
+Start with the immediate API. It is complete, it reads like the canvas APIs you know, and it costs nothing measurable: the [benchmark](https://github.com/wcandillon/skia-wasm/blob/main/BENCHMARK.md) of the display list against per-call bindings found that in a real frame the time is spent in Skia and on the GPU, not in getting calls across to wasm.
+
+The display list is worth it when its shape fits:
+
+- **The scene is fixed and only its numbers change.** A frame is then plain data: floats written into memory, whatever writes them.
+- **Much of the scene does not change.** Shaders and paths are derived from the data and kept; they are only made again when their numbers change.
+- **One scene, many copies.** A program has any number of instances, each with its own data, all drawn in one call.
+
+|                       | Immediate | Retained                    |
+| --------------------- | --------- | --------------------------- |
+| Calls into wasm       | One per operation | One per frame       |
+| Shapes, paths, images | Yes       | Yes                         |
+| Runtime shaders       | Yes       | Yes, uniforms in the data   |
+| Gradients             | All four  | Linear                      |
+| Text and paragraphs   | Yes       | No                          |
+| Filters, path effects | Yes       | No                          |
+| Layers, pictures      | Yes       | No                          |
+
+## Together
+
+Images and runtime effects belong to `sk`, not to either API: one made with `sk.image()`, `sk.texture()` or `sk.effect()` can be drawn by a canvas and referred to by a program.
+
+A surface draws a frame with one API or the other. `surface.draw(scene)` is a whole frame by itself, and it throws while a canvas frame is open: flush that one first.
+
+The display list was written first and some of its spellings differ. It says `drawRRect` where the canvas says `drawRoundedRect`, and it names blend modes as Skia does, `"SrcOver"`, where the immediate API writes `"srcOver"`.

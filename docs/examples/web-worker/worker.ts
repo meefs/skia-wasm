@@ -25,21 +25,18 @@ const start = async (canvas: OffscreenCanvas) => {
       return half4(color, 1);
     }
   `);
+  const paint = sk.paint();
 
-  const b = sk.builder();
-  const shader = b.shader(effect);
-  b.drawRect({ width: canvas.width, height: canvas.height }, { shader });
-  const program = b.build({
-    time: shader.uniforms.iTime,
-    pointer: shader.uniforms.iPointer,
-  });
-
-  const scene = program.instantiate();
   // Workers that own a canvas have requestAnimationFrame too.
   const frame = (time: number) => {
-    scene.values.time = time / 1000;
-    scene.values.pointer.set(pointer.x, pointer.y);
-    sk.surface.draw(scene);
+    const shader = effect.shader({
+      iTime: time / 1000,
+      iPointer: [pointer.x, pointer.y],
+    });
+    paint.shader = shader;
+    shader.dispose();
+    sk.surface.getCanvas().drawPaint(paint);
+    sk.surface.flush();
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);

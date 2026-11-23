@@ -22,13 +22,19 @@ import {
   ShaderKind,
   VERSION,
 } from "./format";
-import { pathBufferWords, toColor } from "./helpers";
-import type { Color } from "./helpers";
+import { toColor } from "./color";
+import type { Color } from "./color";
+import { pathBufferWords } from "./helpers";
 import { lastError } from "./module";
 import type { WasmModule } from "./module";
 import { Program } from "./program";
 import { Image } from "./resources";
-import type { Effect, Resource, UniformKinds } from "./resources";
+import type {
+  Effect,
+  Resource,
+  UniformKinds,
+  UniformValues,
+} from "./resources";
 import { slot } from "./slots";
 import type {
   GradientRef,
@@ -69,10 +75,6 @@ export interface GradientInit {
   /** Evenly spaced stops, two to sixteen. */
   colors: readonly (Color | string)[];
 }
-
-export type UniformValues<U> = {
-  [K in keyof U]?: number | readonly number[];
-};
 
 const encoder = new TextEncoder();
 

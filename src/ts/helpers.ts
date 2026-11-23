@@ -5,8 +5,6 @@
 import { PathBuffer, Verb } from "./format";
 import type { PathBufferRef, Slot } from "./slots";
 
-export type Color = readonly [number, number, number, number?];
-
 /* A matrix is nine floats, row-major: the order of SkMatrix::MakeAll. */
 
 export const writeMatrix = (
@@ -77,31 +75,6 @@ export const writeColor = (
   f32[color + 2] = b;
   f32[color + 3] = a;
 };
-
-/** Parses "#rgb", "#rgba", "#rrggbb" or "#rrggbbaa". */
-export const parseColor = (css: string): [number, number, number, number] => {
-  const hex = css.startsWith("#") ? css.slice(1) : "";
-  const wide = hex.length === 6 || hex.length === 8;
-  if (
-    !/^[0-9a-f]+$/i.test(hex) ||
-    !(wide || hex.length === 3 || hex.length === 4)
-  ) {
-    throw new Error(`Not a hex color: ${css}`);
-  }
-  const channel = (index: number) =>
-    wide
-      ? parseInt(hex.slice(index * 2, index * 2 + 2), 16) / 255
-      : parseInt(hex[index], 16) / 15;
-  const hasAlpha = hex.length === 4 || hex.length === 8;
-  return [channel(0), channel(1), channel(2), hasAlpha ? channel(3) : 1];
-};
-
-export const toColor = (
-  color: Color | string
-): [number, number, number, number] =>
-  typeof color === "string"
-    ? parseColor(color)
-    : [color[0], color[1], color[2], color[3] ?? 1];
 
 /* A path buffer is two counts, its verbs, then its points. */
 

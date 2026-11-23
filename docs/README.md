@@ -1,6 +1,6 @@
 # skia-wasm docs
 
-The documentation site of skia-wasm: [Fumadocs](https://fumadocs.dev) on Next.js, exported as a static site. For now it contains examples and nothing else. Each page runs its example live, then shows its code.
+The documentation site of skia-wasm: [Fumadocs](https://fumadocs.dev) on Next.js, exported as a static site. It contains three short guides and examples. Each example page runs its example live, then shows its code.
 
 This folder is a standalone project, with its own `package.json` and lockfile. It is not a workspace of the repository root.
 
@@ -15,8 +15,9 @@ yarn types:check
 
 ## Examples
 
-- `examples/`: one module per example, or one folder with a `main.ts` when an example needs several files. These files belong to the project of the repository root: `yarn tsc` and `yarn lint` there check them against the source of the library, with `skia-wasm` mapped to `src/ts`.
-- `examples/assets/`: the files the examples fetch, such as `image.png` and `video.mp4`.
+- `examples/`: one module per example, or one folder with a `main.ts` when an example needs several files. Any other folder is a group: `examples/display-list/hello.ts` is the example `display-list-hello`. These files belong to the project of the repository root: `yarn tsc` and `yarn lint` there check them against the source of the library, with `skia-wasm` mapped to `src/ts`.
+- `examples/assets/`: the files the examples fetch: an image, a video and two fonts. `CREDITS.md` says where they come from.
+- `content/docs/getting-started.mdx`, `conventions.mdx` and `immediate-and-retained.mdx`: the guides. Their snippets are written in the page, so nothing type checks them: keep them short, and prefer including an example.
 - `content/docs/`: one page per example. A page is an `<Example name="..." />`, which is the live preview, and an `<include>` of the module, so the code on the site is the code that runs.
 - `content/docs/meta.json`: the order of the sidebar.
 

@@ -24,7 +24,8 @@ const strict = process.argv.includes("--strict");
 const watch = process.argv.includes("--watch");
 
 // examples/name.ts is one example. examples/name/main.ts is an example made
-// of several files: the others become name.file.js, next to the page.
+// of several files: the others become name.file.js, next to the page. Any
+// other folder is a group: examples/group/name.ts is the example group-name.
 const entryPoints = {};
 const pages = [];
 for (const entry of fs.readdirSync(sources, { withFileTypes: true })) {
@@ -33,16 +34,19 @@ for (const entry of fs.readdirSync(sources, { withFileTypes: true })) {
     entryPoints[name] = path.join(sources, entry.name);
     pages.push(name);
   } else if (entry.isDirectory() && entry.name !== "assets") {
-    for (const file of fs.readdirSync(path.join(sources, entry.name))) {
-      if (file === "main.ts") {
-        entryPoints[entry.name] = path.join(sources, entry.name, file);
+    const files = fs.readdirSync(path.join(sources, entry.name));
+    const group = !files.includes("main.ts");
+    for (const file of files.filter((name) => name.endsWith(".ts"))) {
+      const base = file.slice(0, -3);
+      const source = path.join(sources, entry.name, file);
+      if (group) {
+        entryPoints[`${entry.name}-${base}`] = source;
+        pages.push(`${entry.name}-${base}`);
+      } else if (file === "main.ts") {
+        entryPoints[entry.name] = source;
         pages.push(entry.name);
-      } else if (file.endsWith(".ts")) {
-        entryPoints[`${entry.name}.${file.slice(0, -3)}`] = path.join(
-          sources,
-          entry.name,
-          file
-        );
+      } else {
+        entryPoints[`${entry.name}.${base}`] = source;
       }
     }
   }

@@ -49,6 +49,10 @@ class Context {
   SkCanvas* beginFrame(WGPUTexture texture, const SkColor4f& clear);
   // Snaps what was drawn, inserts the recording and submits it.
   bool endFrame();
+  // The same for everything recorded so far, whatever the surface: what the
+  // surfaces of the immediate API call when they are flushed.
+  bool submit();
+  skgpu::graphite::Context* graphite() const { return fContext.get(); }
   // Lets Graphite notice finished GPU work. Returns whether some is pending.
   bool tick();
 
