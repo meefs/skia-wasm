@@ -1,9 +1,19 @@
 {
   "name": "skia-wasm",
-  "version": "0.0.1",
-  "private": true,
+  "version": "0.0.0",
   "description": "Skia Graphite on WebGPU, compiled to WebAssembly",
   "license": "MIT",
+  "author": "William Candillon",
+  "keywords": [
+    "skia",
+    "webgpu",
+    "wasm",
+    "webassembly",
+    "graphite",
+    "canvas",
+    "2d",
+    "graphics"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/wcandillon/skia-wasm.git"
@@ -16,6 +26,22 @@
     "type": "github",
     "url": "https://github.com/sponsors/wcandillon"
   },
+  "sideEffects": false,
+  "main": "./dist/lib/index.js",
+  "module": "./dist/lib/index.js",
+  "types": "./dist/lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/lib/index.d.ts",
+      "default": "./dist/lib/index.js"
+    },
+    "./skia-wasm.js": "./dist/lib/skia-wasm.js",
+    "./skia-wasm.wasm": "./dist/lib/skia-wasm.wasm",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist/lib/**/*"
+  ],
   "packageManager": "yarn@3.6.4",
   "scripts": {
     "prepare-skia": "tsx scripts/skia.ts",
@@ -26,18 +52,27 @@
     "test": "yarn build && playwright test",
     "bench": "yarn build-bench && tsx scripts/run-bench.ts",
     "bench-report": "tsx scripts/bench-report.ts",
+    "release": "semantic-release",
     "lint": "eslint . --ext .ts --max-warnings 0 --cache --fix",
     "lint:ci": "eslint . --ext .ts --max-warnings 0 --cache",
     "tsc": "tsc --noEmit"
   },
+  "dependencies": {
+    "@webgpu/types": "^0.1.69"
+  },
   "devDependencies": {
-    "@webgpu/types": "^0.1.69",
+    "@semantic-release/commit-analyzer": "^13.0.1",
+    "@semantic-release/exec": "^7.0.3",
+    "@semantic-release/github": "^12.0.9",
+    "@semantic-release/release-notes-generator": "^14.1.1",
     "canvaskit-wasm": "0.41.1",
     "esbuild": "~0.28.0",
     "eslint": "9.36.0",
     "eslint-config-react-native-wcandillon": "5.0.1",
     "extract-zip": "^2.0.1",
     "playwright": "1.64.1",
+    "semantic-release": "^25.0.9",
+    "semantic-release-yarn": "^3.0.2",
     "tsx": "^4.21.0",
     "typescript": "^5.2.2"
   }

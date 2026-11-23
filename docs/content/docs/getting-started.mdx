@@ -6,7 +6,7 @@ description: From a canvas to a first frame.
 ## What you need
 
 - **A browser with WebGPU**, and a page served over HTTPS or from localhost. Browsers do not expose WebGPU anywhere else.
-- **The library.** The `skia-wasm` package on npm is still a placeholder. Until it is published, clone the [repository](https://github.com/wcandillon/skia-wasm) and run `yarn build`; its README says what the build needs. `dist/lib` then holds three files to serve together: `index.js`, `skia-wasm.js` and `skia-wasm.wasm`.
+- **The library.** `npm install skia-wasm`. In the package, `dist/lib` holds three files to serve together: `index.js`, `skia-wasm.js` and `skia-wasm.wasm`.
 - **A canvas.** The examples of this site use one of 512 by 512.
 
 ```html
@@ -67,7 +67,7 @@ A second `Skia.init()` is a second copy of the wasm module, with objects of its 
 
 The library loads `skia-wasm.js` from the folder of the file it is in, and `skia-wasm.js` loads `skia-wasm.wasm` from its own. Served as they are, the three files of `dist/lib` find each other.
 
-A bundler moves the library into a bundle of yours. Either copy `skia-wasm.js` and `skia-wasm.wasm` next to that bundle, or say where they are:
+A bundler moves the library into a bundle of yours. Either copy `skia-wasm.js` and `skia-wasm.wasm` (from `node_modules/skia-wasm/dist/lib`) next to that bundle, or say where they are:
 
 ```ts
 const sk = await Skia.init({

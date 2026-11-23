@@ -4,11 +4,21 @@ Skia Graphite on WebGPU, compiled to WebAssembly.
 
 Skia's Graphite renderer runs on the `GPUDevice` of the page, through Dawn's WebGPU bindings for Emscripten. It is built from the same Skia and Dawn revisions as the native binaries of [React Native Skia](https://github.com/wcandillon/react-native-skia).
 
-**This is experimental.** There is no stable API yet, and the `skia-wasm` package on npm is a placeholder. The API is in the style of CanvasKit: a canvas, paints and paths. [BENCHMARK.md](./BENCHMARK.md) measures it against `canvaskit-wasm`, on a laptop and on a phone.
+**This is experimental.** There is no stable API yet: the package is at 0.x, and a new minor version can change it. The API is in the style of CanvasKit: a canvas, paints and paths. [BENCHMARK.md](./BENCHMARK.md) measures it against `canvaskit-wasm`, on a laptop and on a phone.
 
 **Documentation:** [wcandillon.github.io/skia-wasm](https://wcandillon.github.io/skia-wasm/docs/). Two short guides ([getting started](https://wcandillon.github.io/skia-wasm/docs/getting-started/) and [conventions](https://wcandillon.github.io/skia-wasm/docs/conventions/)), then examples that run live above their code.
 
 This is an independent open source project. It is not an official Skia package.
+
+## Installing
+
+```sh
+npm install skia-wasm
+```
+
+The package is three files that go together, in `dist/lib`: `index.js`, the library; `skia-wasm.js`, the module it loads; and `skia-wasm.wasm`. Served as they are, they find each other. A bundler moves the library into a bundle of yours: copy the two other files next to that bundle, or tell `Skia.init()` where they are with its `module` option. [Getting started](https://wcandillon.github.io/skia-wasm/docs/getting-started/) shows both.
+
+It needs a browser with WebGPU, and a page served over HTTPS or from localhost.
 
 ## The API
 
@@ -100,6 +110,14 @@ yarn build && yarn build-bench && yarn serve
 ```
 
 The test needs Playwright's Chromium (`yarn playwright install chromium`); the benchmark uses the installed Google Chrome, or Chrome on an Android phone (`yarn bench --target=android`, see `scripts/run-bench.ts`).
+
+## Releasing
+
+The Publish workflow (`.github/workflows/publish.yml`, run by hand on `main`) releases the package with [semantic-release](https://semantic-release.gitbook.io): it reads the commits since the last release, decides the next version, tags it, publishes to npm and creates the GitHub release.
+
+- The version comes from the commit messages, which follow [Conventional Commits](https://www.conventionalcommits.org): a `fix:` makes a patch, a `feat:` a minor, and anything else (`chore:`, `docs:`...) no release. While the package is at 0.x, a breaking change is a minor too (`.releaserc`).
+- There is no npm token: npm trusts that workflow, by its file name, through OIDC. Renaming the file breaks publishing until the trusted publisher of the package on npmjs.com names the new one.
+- Its "dry run" input says what would be released and leaves the package as an artifact, without publishing.
 
 ## The Skia archives
 

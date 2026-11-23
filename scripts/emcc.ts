@@ -73,15 +73,22 @@ export const link = async (options: LinkOptions) => {
   return output;
 };
 
-/** Bundles a TypeScript entry point into one ES module for the browser. */
-export const bundle = async (entry: string, output: string) => {
+/**
+ * Bundles a TypeScript entry point into one ES module for the browser. The
+ * source map is inside the file, or next to it for a file that is published.
+ */
+export const bundle = async (
+  entry: string,
+  output: string,
+  { published = false } = {}
+) => {
   await build({
     entryPoints: [entry],
     outfile: output,
     bundle: true,
     format: "esm",
     target: "es2022",
-    sourcemap: "inline",
+    sourcemap: published ? "linked" : "inline",
     logLevel: "warning",
   });
   report(output);

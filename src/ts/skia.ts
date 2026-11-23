@@ -1,4 +1,4 @@
-/// <reference types="@webgpu/types" />
+/// <reference types="@webgpu/types" preserve="true" />
 import { Canvas } from "./canvas";
 import type { ColorInput } from "./color";
 import {

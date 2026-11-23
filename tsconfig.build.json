@@ -1,0 +1,13 @@
+{
+  // The declarations of the published package: src/ts only, next to the
+  // bundle that scripts/build.ts makes in dist/lib.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "rootDir": "src/ts",
+    "outDir": "dist/lib"
+  },
+  "include": ["src/ts"]
+}
