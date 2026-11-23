@@ -61,12 +61,14 @@ export class PictureRecorder extends NativeObject {
    * drawn: what is outside of it may be left out.
    */
   begin(x: number, y: number, width: number, height: number) {
-    this.canvas.pointer = this.runtime.module._sk_picture_recorder_begin(
-      ref(this),
-      x,
-      y,
-      width,
-      height
+    this.canvas.attach(
+      this.runtime.module._sk_picture_recorder_begin(
+        ref(this),
+        x,
+        y,
+        width,
+        height
+      )
     );
     return this.canvas;
   }
@@ -76,7 +78,7 @@ export class PictureRecorder extends NativeObject {
     if (this.canvas.pointer === 0) {
       throw new Error("Nothing is being recorded: call begin() first.");
     }
-    this.canvas.pointer = 0;
+    this.canvas.attach(0);
     return new Picture(
       this.runtime,
       this.runtime.module._sk_picture_recorder_finish(ref(this))

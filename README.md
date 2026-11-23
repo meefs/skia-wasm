@@ -50,6 +50,7 @@ Where it departs from CanvasKit:
 - **Everything comes from `sk`.** `sk.paint()`, `sk.path()`, `sk.font()`: an object lives in the wasm module that `sk` loaded, so there are no constructors to call.
 - **CSS colors.** Wherever a color is taken: hex, names, `rgb()` and `hsl()`, or `[r, g, b, a]` in [0, 1]. `parseColor()` is exported.
 - **Radians**, for every angle.
+- **Units, not pixels.** The size of a canvas is the size of the drawing. A canvas on the page gets the pixels its screen needs, and drawing is scaled to them under every transform: the same code is sharp at any device pixel ratio. `pixelRatio: 1` leaves a canvas alone.
 - **Lifetimes.** `dispose()` frees an object now, a `using` declaration frees it at the end of a scope, and the garbage collector frees what was forgotten. A paint keeps the shader and the filters it is given, so they can be disposed right after. Images and runtime effects are only freed by `dispose()`: the display list refers to them by number.
 - **Frames.** `surface.getCanvas()` starts a frame and `surface.flush()` sends it to the GPU.
 
@@ -127,7 +128,7 @@ Left out on purpose: text and paragraphs, image filters, color filters, path eff
 - `src/ts/exports.ts`: the typed list of the C exports, written by `yarn generate-exports` from `src/cpp`, so that a call with the wrong number of arguments does not compile.
 - `tests/`: one page per API, each with a tile per feature, checked by reading pixels back with WebGPU. The display list is drawn over four frames while its data, its bindings and the lifetime of its resources change.
 - `bench/`: four scenes, each drawn through embind objects, C exports, a command buffer and the display list.
-- `docs/`: the documentation site: three guides, then examples, the immediate API first and the display list last. `docs/examples/` holds one module per example, type checked and linted with the rest of the repository. The site itself is a standalone project (`cd docs && yarn install && yarn dev`).
+- `docs/`: the documentation site: three guides, then examples, the immediate API first and the display list last. Its home page is drawn by the library: Skia draws the page into two textures and a WebGPU pass draws a ribbon between them, over the page and behind the word "skia", the subtitle and the buttons (`docs/hero/hero.ts`). `docs/examples/` holds one module per example, type checked and linted with the rest of the repository. The site itself is a standalone project (`cd docs && yarn install && yarn dev`).
 
 ## Building
 

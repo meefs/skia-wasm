@@ -1,14 +1,15 @@
 import { Skia } from "skia-wasm";
 
-type Message = { canvas: OffscreenCanvas } | { x: number; y: number };
+type Message =
+  { canvas: OffscreenCanvas; pixelRatio: number } | { x: number; y: number };
 
 const pointer = { x: 256, y: 256 };
 
-const start = async (canvas: OffscreenCanvas) => {
+const start = async (canvas: OffscreenCanvas, pixelRatio: number) => {
   // WebGPU is available in workers: the device is created here.
   const adapter = await navigator.gpu.requestAdapter();
   const device = await adapter!.requestDevice();
-  const sk = await Skia.init({ device, canvas });
+  const sk = await Skia.init({ device, canvas, pixelRatio });
 
   const effect = sk.effect<{ iTime: "f32"; iPointer: "vec2" }>(`
     uniform float iTime;
@@ -44,7 +45,7 @@ const start = async (canvas: OffscreenCanvas) => {
 
 addEventListener("message", ({ data }: MessageEvent<Message>) => {
   if ("canvas" in data) {
-    start(data.canvas);
+    start(data.canvas, data.pixelRatio);
   } else {
     pointer.x = data.x;
     pointer.y = data.y;

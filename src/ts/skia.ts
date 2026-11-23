@@ -33,7 +33,16 @@ import type { SlotKind } from "./slots";
 import { Font, makeParagraph, Typeface } from "./text";
 import type { ParagraphStyle, TextSpan } from "./text";
 
-export interface InitOptions {
+export interface SurfaceOptions {
+  /**
+   * How many pixels a unit of the drawing takes. A canvas on the page gets
+   * what the screen needs if this is left out; an OffscreenCanvas and a
+   * texture get 1.
+   */
+  pixelRatio?: number;
+}
+
+export interface InitOptions extends SurfaceOptions {
   device: GPUDevice;
   /** What `sk.surface` draws to. */
   canvas?: HTMLCanvasElement | OffscreenCanvas;
@@ -71,6 +80,10 @@ const kindOfUniform = (type: string, count: number): SlotKind => {
  *
  * Immediate mode: `getCanvas()`, draw, `flush()`. Retained mode:
  * `draw(scene)`.
+ *
+ * A surface has a size, in the units of the drawing, and a density: how many
+ * pixels each unit takes. Drawing is in units; the density is applied under
+ * it, so that the same code is sharp on any screen.
  */
 export class Surface {
   private red = 0;
@@ -87,20 +100,21 @@ export class Surface {
 
   constructor(
     runtime: Runtime,
-    private readonly target: GPUCanvasContext | GPUTexture
+    private readonly target: GPUCanvasContext | GPUTexture,
+    /** Its size, in the units of the drawing. */
+    readonly width: number,
+    readonly height: number,
+    // Pixels per unit, on each axis.
+    private readonly densityX = 1,
+    private readonly densityY = densityX
   ) {
     this.module = runtime.module;
     this.canvas = new Canvas(runtime);
   }
 
-  get width() {
-    const { target } = this;
-    return "canvas" in target ? target.canvas.width : target.width;
-  }
-
-  get height() {
-    const { target } = this;
-    return "canvas" in target ? target.canvas.height : target.height;
+  /** How many pixels a unit of the drawing takes. */
+  get pixelRatio() {
+    return this.densityX;
   }
 
   /**
@@ -145,7 +159,11 @@ export class Surface {
         throw new Error(lastError(module));
       }
       this.frame = frame;
-      this.canvas.pointer = module._sk_frame_canvas(frame);
+      this.canvas.attach(
+        module._sk_frame_canvas(frame),
+        this.densityX,
+        this.densityY
+      );
     }
     return this.canvas;
   }
@@ -157,7 +175,7 @@ export class Surface {
       return;
     }
     this.frame = 0;
-    this.canvas.pointer = 0;
+    this.canvas.attach(0);
     if (module._sk_frame_end(frame) === 0) {
       throw new Error(lastError(module));
     }
@@ -198,6 +216,8 @@ export class Surface {
         this.green,
         this.blue,
         this.alpha,
+        this.densityX,
+        this.densityY,
         this.scratch,
         count
       );
@@ -212,6 +232,8 @@ export class Surface {
         this.green,
         this.blue,
         this.alpha,
+        this.densityX,
+        this.densityY,
         pointer
       );
     }
@@ -230,18 +252,29 @@ export class OffscreenSurface extends NativeObject {
 
   constructor(
     private readonly runtime: Runtime,
+    /** Its size, in the units of the drawing. */
     readonly width: number,
-    readonly height: number
+    readonly height: number,
+    /** How many pixels a unit of the drawing takes. */
+    readonly pixelRatio = 1
   ) {
     const { module } = runtime;
-    super(module._sk_offscreen_new(width, height), module._sk_unref, "surface");
+    super(
+      module._sk_offscreen_new(
+        Math.max(1, Math.round(width * pixelRatio)),
+        Math.max(1, Math.round(height * pixelRatio))
+      ),
+      module._sk_unref,
+      "surface"
+    );
     this.canvas = new Canvas(runtime);
-    this.canvas.pointer = module._sk_offscreen_canvas(this.pointer);
+    // Once: the canvas of this surface keeps its state from flush to flush.
+    this.canvas.attach(module._sk_offscreen_canvas(this.pointer), pixelRatio);
   }
 
   /** Always the same canvas. Nothing clears it: what was drawn stays. */
   getCanvas() {
-    this.canvas.pointer = this.runtime.module._sk_offscreen_canvas(ref(this));
+    ref(this);
     return this.canvas;
   }
 
@@ -253,7 +286,10 @@ export class OffscreenSurface extends NativeObject {
     }
   }
 
-  /** What the surface holds now, as an image. */
+  /**
+   * What the surface holds now, as an image. An image is measured in pixels:
+   * with a pixel ratio, it is that many times the size of the surface.
+   */
   snapshot() {
     const { module } = this.runtime;
     const handle = module._sk_offscreen_snapshot(ref(this));
@@ -264,7 +300,7 @@ export class OffscreenSurface extends NativeObject {
   }
 
   dispose() {
-    this.canvas.pointer = 0;
+    this.canvas.attach(0);
     super.dispose();
   }
 }
@@ -315,7 +351,7 @@ export class Skia {
     }
     const skia = new Skia(module, options.device);
     if (options.canvas) {
-      skia.canvasSurface = skia.makeSurface(options.canvas);
+      skia.canvasSurface = skia.makeSurface(options.canvas, options);
     }
     return skia;
   }
@@ -330,10 +366,62 @@ export class Skia {
     return this.canvasSurface;
   }
 
-  /** A surface on a canvas, which it configures, or on a texture. */
-  makeSurface(target: HTMLCanvasElement | OffscreenCanvas | GPUTexture) {
+  /**
+   * A surface on a canvas, which it configures, or on a texture.
+   *
+   * The size of a canvas, its `width` and `height`, is the size of the
+   * drawing. A canvas on the page is then given the pixels that the screen
+   * needs for the place it takes: twice as many each way on a screen with a
+   * device pixel ratio of 2. Pass `pixelRatio: 1` to leave the canvas alone.
+   */
+  makeSurface(
+    target: HTMLCanvasElement | OffscreenCanvas | GPUTexture,
+    options: SurfaceOptions = {}
+  ) {
+    const { pixelRatio } = options;
     if (!("getContext" in target)) {
-      return new Surface(this.runtime, target);
+      // The pixels of a texture are what they are: only the units change.
+      const ratio = pixelRatio ?? 1;
+      return new Surface(
+        this.runtime,
+        target,
+        target.width / ratio,
+        target.height / ratio,
+        ratio
+      );
+    }
+    const { width, height } = target;
+    let pixelsX = width * (pixelRatio ?? 1);
+    let pixelsY = height * (pixelRatio ?? 1);
+    if ("clientWidth" in target) {
+      const onPageX = target.clientWidth;
+      const onPageY = target.clientHeight;
+      const shown = onPageX > 0 && onPageY > 0;
+      if (pixelRatio === undefined) {
+        // What the screen shows of it, whatever CSS made of its size.
+        pixelsX = (shown ? onPageX : width) * devicePixelRatio;
+        pixelsY = (shown ? onPageY : height) * devicePixelRatio;
+      }
+      pixelsX = Math.max(1, Math.round(pixelsX));
+      pixelsY = Math.max(1, Math.round(pixelsY));
+      if (target.width !== pixelsX || target.height !== pixelsY) {
+        target.width = pixelsX;
+        target.height = pixelsY;
+        // A canvas that CSS gives no size takes the one of its pixels: it
+        // just grew on the page. It keeps the size it had.
+        if (
+          !shown ||
+          target.clientWidth !== onPageX ||
+          target.clientHeight !== onPageY
+        ) {
+          target.style.width = `${shown ? onPageX : width}px`;
+          target.style.height = `${shown ? onPageY : height}px`;
+        }
+      }
+    } else {
+      // Not on a page, or in a worker: nothing says what the screen needs.
+      target.width = Math.max(1, Math.round(pixelsX));
+      target.height = Math.max(1, Math.round(pixelsY));
     }
     const context = target.getContext("webgpu") as GPUCanvasContext | null;
     if (context === null) {
@@ -350,12 +438,28 @@ export class Skia {
         GPUTextureUsage.COPY_SRC,
       alphaMode: "premultiplied",
     });
-    return new Surface(this.runtime, context);
+    return new Surface(
+      this.runtime,
+      context,
+      width,
+      height,
+      target.width / width,
+      target.height / height
+    );
   }
 
   /** A surface that is not shown: draw to it, then take a snapshot. */
-  makeOffscreenSurface(width: number, height: number) {
-    return new OffscreenSurface(this.runtime, width, height);
+  makeOffscreenSurface(
+    width: number,
+    height: number,
+    options: SurfaceOptions = {}
+  ) {
+    return new OffscreenSurface(
+      this.runtime,
+      width,
+      height,
+      options.pixelRatio
+    );
   }
 
   /** Records what is drawn to its canvas into a picture. */

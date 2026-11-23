@@ -176,12 +176,15 @@ EMSCRIPTEN_KEEPALIVE void sk_instance_release(Instance* instance) {
 // ---- Drawing.
 
 // Clears the texture (from WebGPU.importJsTexture(), reference taken over),
-// plays the instances in order, and submits.
+// plays the instances in order, and submits. The scale is the density of the
+// surface: how many pixels of the texture a unit of the drawing takes.
 EMSCRIPTEN_KEEPALIVE int sk_draw(WGPUTexture texture,
                                  float r,
                                  float g,
                                  float b,
                                  float a,
+                                 float scaleX,
+                                 float scaleY,
                                  Instance* const* instances,
                                  uint32_t count) {
   Context* context = Context::Get();
@@ -189,6 +192,7 @@ EMSCRIPTEN_KEEPALIVE int sk_draw(WGPUTexture texture,
   if (!canvas) {
     return 0;
   }
+  canvas->scale(scaleX, scaleY);
   for (uint32_t i = 0; i < count; i++) {
     instances[i]->play(canvas, context->store());
   }
@@ -200,8 +204,10 @@ EMSCRIPTEN_KEEPALIVE int sk_draw_one(WGPUTexture texture,
                                      float g,
                                      float b,
                                      float a,
+                                     float scaleX,
+                                     float scaleY,
                                      Instance* instance) {
-  return sk_draw(texture, r, g, b, a, &instance, 1);
+  return sk_draw(texture, r, g, b, a, scaleX, scaleY, &instance, 1);
 }
 
 EMSCRIPTEN_KEEPALIVE int sk_tick() { return Context::Get()->tick() ? 1 : 0; }

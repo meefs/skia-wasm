@@ -52,6 +52,10 @@ for (const entry of fs.readdirSync(sources, { withFileTypes: true })) {
   }
 }
 
+// The hero of the home page is built here too: it is a module that the page
+// loads at run time, with no page of its own.
+entryPoints.hero = path.join(docs, "hero", "hero.ts");
+
 // `new URL("./worker.ts", import.meta.url)` is what a bundler expects in the
 // source. Here the worker is built as its own file, so the URL names it.
 const fileUrls = {

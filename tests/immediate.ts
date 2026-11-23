@@ -90,6 +90,8 @@ const run = async () => {
     device,
     canvas: document.querySelector<HTMLCanvasElement>("#gpu")!,
     module: new URL("../dist/lib/skia-wasm.js", location.href).href,
+    // The checks below read pixels back: one per unit, whatever the screen.
+    pixelRatio: 1,
   });
 
   const target = device.createTexture({
@@ -1277,6 +1279,173 @@ const run = async () => {
     "a surface knows its size",
     sk.surface.width === WIDTH && sk.surface.height === HEIGHT
   );
+
+  // ---- Density: a surface is drawn to in units, each of several pixels.
+  step("drawing at a pixel ratio of 2");
+  {
+    const SIZE = 128;
+    const dense = device.createTexture({
+      size: [SIZE, SIZE],
+      format: "rgba8unorm",
+      usage:
+        GPUTextureUsage.RENDER_ATTACHMENT |
+        GPUTextureUsage.TEXTURE_BINDING |
+        GPUTextureUsage.COPY_SRC,
+    });
+    const buffer = device.createBuffer({
+      size: SIZE * SIZE * 4,
+      usage: GPUBufferUsage.COPY_DST | GPUBufferUsage.MAP_READ,
+    });
+    const densePixel = async (x: number, y: number) => {
+      const encoder = device.createCommandEncoder();
+      encoder.copyTextureToBuffer(
+        { texture: dense },
+        { buffer, bytesPerRow: SIZE * 4 },
+        [SIZE, SIZE]
+      );
+      device.queue.submit([encoder.finish()]);
+      await buffer.mapAsync(GPUMapMode.READ);
+      const data = new Uint8Array(buffer.getMappedRange());
+      const pixel = Array.from(
+        data.subarray((y * SIZE + x) * 4, (y * SIZE + x) * 4 + 3)
+      );
+      buffer.unmap();
+      return pixel;
+    };
+    const twice = sk.makeSurface(dense, { pixelRatio: 2 });
+    twice.setClearColor(1, 1, 1, 1);
+    expectTrue(
+      "a surface with a pixel ratio is measured in units",
+      twice.width === 64 && twice.height === 64 && twice.pixelRatio === 2,
+      [twice.width, twice.height, twice.pixelRatio]
+    );
+
+    const units = twice.getCanvas();
+    expectClose(
+      "the density is not part of the matrix of the canvas",
+      units.getMatrix().slice(0, 6),
+      [1, 0, 0, 0, 1, 0]
+    );
+    units.drawRect(0, 0, 32, 32, sk.paint({ color: "red" }));
+    // Replaces the transform, but not the density under it.
+    units.setMatrix(1, 0, 32, 0, 1, 32);
+    units.drawRect(0, 0, 16, 16, sk.paint({ color: "blue" }));
+    expectClose(
+      "setMatrix() is in units",
+      units.getMatrix().slice(0, 6),
+      [1, 0, 32, 0, 1, 32]
+    );
+    twice.flush();
+    expectClose(
+      "a unit is two pixels",
+      await densePixel(56, 56),
+      [255, 0, 0],
+      3
+    );
+    expectClose(
+      "past the units that were drawn",
+      await densePixel(72, 40),
+      [255, 255, 255],
+      3
+    );
+    expectClose(
+      "a transform set by hand is in units too",
+      await densePixel(80, 80),
+      [0, 0, 255],
+      3
+    );
+    expectClose(
+      "and stops where its units stop",
+      await densePixel(104, 104),
+      [255, 255, 255],
+      3
+    );
+
+    // The display list is played at the same density.
+    const builder = sk.builder();
+    builder.drawRect({ width: 32, height: 32 }, { color: "#00ff00" });
+    const square = builder.build().instantiate();
+    twice.draw(square);
+    expectClose(
+      "a display list is drawn in units",
+      await densePixel(56, 56),
+      [0, 255, 0],
+      3
+    );
+    expectClose(
+      "past the units of a display list",
+      await densePixel(72, 72),
+      [255, 255, 255],
+      3
+    );
+    square.dispose();
+
+    // A canvas of the page is given the pixels, and keeps its place.
+    const element = document.createElement("canvas");
+    element.width = 64;
+    element.height = 32;
+    document.body.append(element);
+    const onPage = sk.makeSurface(element, { pixelRatio: 2 });
+    expectTrue(
+      "a canvas gets more pixels and keeps its size on the page",
+      element.width === 128 &&
+        element.height === 64 &&
+        element.clientWidth === 64 &&
+        element.clientHeight === 32 &&
+        onPage.width === 64 &&
+        onPage.height === 32,
+      [
+        element.width,
+        element.height,
+        element.clientWidth,
+        element.clientHeight,
+        onPage.width,
+        onPage.height,
+      ]
+    );
+    const untouched = document.createElement("canvas");
+    untouched.width = 64;
+    untouched.height = 32;
+    untouched.style.width = "128px";
+    untouched.style.height = "64px";
+    document.body.append(untouched);
+    const stretched = sk.makeSurface(untouched);
+    expectTrue(
+      "a canvas that CSS enlarges gets the pixels of its size on the page",
+      untouched.width === 128 * devicePixelRatio &&
+        untouched.clientWidth === 128 &&
+        stretched.width === 64 &&
+        stretched.pixelRatio === 2 * devicePixelRatio,
+      [
+        untouched.width,
+        untouched.clientWidth,
+        stretched.width,
+        stretched.pixelRatio,
+      ]
+    );
+    const exact = document.createElement("canvas");
+    exact.width = 64;
+    exact.height = 32;
+    document.body.append(exact);
+    sk.makeSurface(exact, { pixelRatio: 1 });
+    expectTrue(
+      "a pixel ratio of 1 leaves a canvas alone",
+      exact.width === 64 && exact.style.width === "",
+      [exact.width, exact.style.width]
+    );
+    for (const canvasElement of [element, untouched, exact]) {
+      canvasElement.remove();
+    }
+
+    const hidden2 = sk.makeOffscreenSurface(16, 16, { pixelRatio: 2 });
+    hidden2.getCanvas().clear("red");
+    const dense2 = hidden2.snapshot();
+    expectTrue(
+      "an offscreen surface with a pixel ratio has that many pixels",
+      hidden2.width === 16 && dense2.width === 32 && dense2.height === 32,
+      [hidden2.width, dense2.width, dense2.height]
+    );
+  }
 
   step("waiting for pending GPU work");
   let pending = sk.tick();

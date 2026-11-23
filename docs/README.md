@@ -32,6 +32,14 @@ To add an example, write `examples/name.ts`, add `content/docs/name.mdx`, then l
 - Without the wasm module, `yarn dev` still works and the previews say what is missing. `yarn build` fails instead, so that a site is never published with previews that cannot run.
 - An example that asks for a permission, such as the camera, takes `<Example name="..." manual />` and waits for a click.
 
+## The home page
+
+The hero of the home page is drawn by the library itself. Skia draws the elements of the page into two textures: what stays in front (the word "skia", the subtitle and the buttons) in one, everything else in the other. A WebGPU pass of the page draws a ribbon between the two. An element is put in front with `data-hero-front=""`, or a part of its text with `data-hero-front="word"`.
+
+- `components/hero.tsx`: the page. Its elements are real ones: they are the layout, the links and what a screen reader finds. It measures them, hands their boxes, fonts and colors to the hero, and makes them transparent once the hero runs. Without WebGPU or without the wasm module, they simply stay.
+- `hero/hero.ts`: the hero, with its WGSL shader. Like the examples, it belongs to the project of the repository root, and `scripts/examples.mjs` builds it into `public/examples/hero.js`, which the page loads at run time.
+- `hero/types.ts`: what the two exchange.
+
 ## Deployment
 
 `.github/workflows/docs.yml` publishes the site to GitHub Pages on every push to `main`. It installs Emscripten, builds the wasm module in the repository root, then builds this folder and uploads `out/`. It needs Pages enabled in the repository settings, with "GitHub Actions" as its source.

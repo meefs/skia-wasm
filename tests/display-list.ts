@@ -94,6 +94,8 @@ const run = async () => {
     device,
     canvas: document.querySelector<HTMLCanvasElement>("#gpu")!,
     module: new URL("../dist/lib/skia-wasm.js", location.href).href,
+    // The checks below read pixels back: one per unit, whatever the screen.
+    pixelRatio: 1,
   });
 
   // The target that is read back: a texture, not the canvas.

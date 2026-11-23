@@ -22,6 +22,7 @@
     "tests",
     "bench",
     "docs/examples",
+    "docs/hero",
     "playwright.config.ts"
   ],
   "exclude": ["node_modules", "dist"]

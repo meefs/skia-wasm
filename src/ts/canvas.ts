@@ -38,8 +38,25 @@ export interface DrawImageOptions {
 export class Canvas {
   /** Its address. Zero when there is nothing to draw to. */
   pointer = 0;
+  // The density of what it draws to: pixels per unit of the drawing. It is
+  // a scale under every transform, which setMatrix() does not replace.
+  private densityX = 1;
+  private densityY = 1;
 
   constructor(private readonly runtime: Runtime) {}
+
+  /**
+   * Called by what owns the canvas when it becomes valid, with the density
+   * of its surface.
+   */
+  attach(pointer: number, densityX = 1, densityY = densityX) {
+    this.pointer = pointer;
+    this.densityX = densityX;
+    this.densityY = densityY;
+    if (pointer !== 0 && (densityX !== 1 || densityY !== 1)) {
+      this.runtime.module._sk_canvas_scale(pointer, densityX, densityY);
+    }
+  }
 
   private get address() {
     const { pointer } = this;
@@ -141,14 +158,15 @@ export class Canvas {
     persp1 = 0,
     persp2 = 1
   ) {
+    const { densityX, densityY } = this;
     this.runtime.module._sk_canvas_set_matrix(
       this.address,
-      scaleX,
-      skewX,
-      transX,
-      skewY,
-      scaleY,
-      transY,
+      densityX * scaleX,
+      densityX * skewX,
+      densityX * transX,
+      densityY * skewY,
+      densityY * scaleY,
+      densityY * transY,
       persp0,
       persp1,
       persp2
@@ -159,7 +177,13 @@ export class Canvas {
   getMatrix() {
     const { module } = this.runtime;
     const at = module._sk_canvas_matrix(this.address) >> 2;
-    return Array.from(module.HEAPF32.subarray(at, at + 9));
+    const matrix = Array.from(module.HEAPF32.subarray(at, at + 9));
+    // Without the density of the surface, which is not the caller's.
+    for (let i = 0; i < 3; i++) {
+      matrix[i] /= this.densityX;
+      matrix[i + 3] /= this.densityY;
+    }
+    return matrix;
   }
 
   clipRect(

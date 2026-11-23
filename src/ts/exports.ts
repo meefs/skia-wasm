@@ -30,6 +30,8 @@ export interface Exports {
     g: number,
     b: number,
     a: number,
+    scaleX: number,
+    scaleY: number,
     instances: number,
     count: number
   ): number;
@@ -39,6 +41,8 @@ export interface Exports {
     g: number,
     b: number,
     a: number,
+    scaleX: number,
+    scaleY: number,
     instance: number
   ): number;
   _sk_tick(): number;

@@ -1,5 +1,5 @@
 export { OffscreenSurface, Skia, Surface } from "./skia";
-export type { InitOptions } from "./skia";
+export type { InitOptions, SurfaceOptions } from "./skia";
 
 // ---- Immediate mode.
 export { Canvas } from "./canvas";

@@ -7,8 +7,11 @@ const sk = await Skia.init({
   canvas: document.querySelector("canvas")!,
 });
 
-// A surface that is not on screen: Skia owns its texture.
-const offscreen = sk.makeOffscreenSurface(256, 256);
+// A surface that is not on screen: Skia owns its texture. It is given the
+// density of the screen it will be shown on.
+const offscreen = sk.makeOffscreenSurface(256, 256, {
+  pixelRatio: devicePixelRatio,
+});
 const hidden = offscreen.getCanvas();
 hidden.clear("#fde68a");
 const petal = sk.paint({ color: "#f97316", blendMode: "multiply" });
@@ -37,7 +40,8 @@ const frame = (time: number) => {
   const canvas = sk.surface.getCanvas();
   canvas.clear("white");
   canvas.rotate(time / 3000, 256, 232);
-  canvas.drawImage(image, 128, 104);
+  // An image is measured in pixels: it is drawn at the size of the surface.
+  canvas.drawImage(image, 128, 104, offscreen.width, offscreen.height);
   sk.surface.flush();
   requestAnimationFrame(frame);
 };

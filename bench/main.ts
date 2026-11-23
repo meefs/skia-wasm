@@ -142,6 +142,8 @@ const run = async () => {
     device,
     canvas,
     module: new URL("../dist/bench/bench-module.js", location.href).href,
+    // The scenes are measured on the pixels the canvas was given.
+    pixelRatio: 1,
   });
   const module = sk.module as BenchModule;
   const { surface } = sk;

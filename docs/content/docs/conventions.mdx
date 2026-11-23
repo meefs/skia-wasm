@@ -40,6 +40,29 @@ canvas.concat(scaleX, skewX, transX, skewY, scaleY, transY);
 image.shader({ matrix: [0.5, 0, 0, 0, 0.5, 0] });
 ```
 
+## Units, not pixels
+
+The `width` and `height` of a canvas are the size of the drawing: a canvas of 512 by 512 is drawn to in 512 units each way, on any screen.
+
+The pixels are another matter. A canvas on the page is given the pixels that the screen needs for the place it takes, twice as many each way on a screen with a device pixel ratio of 2, and drawing is scaled to them underneath every transform. The same code is sharp everywhere, and a pointer position, which is in CSS pixels, is in the units of the drawing.
+
+Three cases are yours to handle:
+
+```ts
+// Leave the canvas exactly as it is: one pixel per unit.
+const sk = await Skia.init({ device, canvas, pixelRatio: 1 });
+
+// A worker cannot see the screen: the page tells it the ratio.
+const sk = await Skia.init({ device, canvas: offscreen, pixelRatio });
+
+// A surface that is not on screen has one pixel per unit unless asked.
+const offscreen = sk.makeOffscreenSurface(256, 256, {
+  pixelRatio: devicePixelRatio,
+});
+```
+
+An image is always measured in pixels, so a snapshot of that last surface is 512 by 512 on such a screen: draw it at the size of the surface.
+
 ## Angles are in radians
 
 Every angle, everywhere. Since y points down, a positive angle turns clockwise.
